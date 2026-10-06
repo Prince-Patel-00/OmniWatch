@@ -1,0 +1,205 @@
+import React from 'react';
+import {
+  Star,
+  Clock,
+  Play,
+  Check,
+  Plus,
+  Heart,
+  BookmarkCheck,
+  Bookmark,
+  CheckCircle2,
+  RotateCw
+} from 'lucide-react';
+import { formatTimeUntil } from '@omniwatch/shared';
+
+export default function MediaCard({
+  media,
+  catalogEntry = null,
+  onClick,
+  onIncrementProgress,
+  onToggleFavorite,
+  onQuickSetStatus
+}) {
+  const isAiring = media.status === 'Airing';
+  const timeUntil = media.nextAiringAt ? formatTimeUntil(media.nextAiringAt) : null;
+  const isMovie = media.mediaType === 'Movie' || media.format === 'Movie' || media.isMovie;
+  const isEpisodic = !isMovie && (media.mediaType === 'Anime' || media.mediaType === 'Series');
+
+  const userStatus = catalogEntry?.userStatus;
+  const isFavorite = catalogEntry?.isFavorite;
+  const isRewatching = catalogEntry?.isRewatching;
+  const currentEp = catalogEntry?.currentEpisode || 0;
+  const totalEp = catalogEntry?.totalEpisodes || media.totalEpisodes;
+
+  return (
+    <div
+      onClick={onClick}
+      className="group relative flex flex-col rounded-2xl bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700/80 overflow-hidden shadow-lg hover:shadow-2xl hover:shadow-red-950/20 transition-all duration-300 hover:-translate-y-1.5 cursor-pointer"
+    >
+      {/* Poster Image Container (2/3 aspect ratio) */}
+      <div className="relative aspect-[2/3] w-full overflow-hidden bg-zinc-950">
+        <img
+          src={media.posterUrl || 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=500&auto=format&fit=crop'}
+          alt={media.title}
+          loading="lazy"
+          className="w-full h-full object-cover object-center filter brightness-[0.92] group-hover:scale-105 transition-transform duration-500"
+        />
+
+        {/* Ambient overlay shadows */}
+        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-black/40 opacity-80" />
+
+        {/* Top Floating Badges */}
+        <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1 pointer-events-none">
+          {/* Media Type */}
+          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider text-white shadow-md backdrop-blur-md ${media.mediaType === 'Anime' && isMovie ? 'bg-purple-600/90' : 'bg-red-600/90'
+            }`}>
+            {media.mediaType === 'Anime' ? (isMovie ? 'Anime Movie' : 'Anime') : media.mediaType}
+          </span>
+
+          {/* Rating */}
+          {media.rating && (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-extrabold bg-zinc-950/80 text-amber-300 border border-amber-500/30 backdrop-blur-md">
+              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+              {media.rating.toFixed(1)}
+            </span>
+          )}
+        </div>
+
+        {/* Bottom Banner inside Poster: Airing Countdown or In-Catalog Status */}
+        <div className="absolute bottom-2 left-2 right-2 flex flex-col gap-1">
+          {/* Next Episode Airing Pill */}
+          {timeUntil && isAiring && (
+            <span className="self-start flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-950/90 text-red-200 border border-red-800/60 backdrop-blur-md shadow-md animate-pulse">
+              <Clock className="w-3 h-3 text-red-400" />
+              <span>Next {timeUntil}</span>
+            </span>
+          )}
+
+          {/* Catalog Tracking Status Pill or Default Not Started */}
+          {userStatus ? (
+            <div className="flex items-center justify-between gap-1 px-2.5 py-1 rounded-lg bg-zinc-950/90 border border-emerald-500/30 backdrop-blur-md text-emerald-400 text-[11px] font-bold shadow-md">
+              <div className="flex items-center gap-1 truncate">
+                <BookmarkCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span className="truncate">{userStatus}</span>
+                {isRewatching && (
+                  <span className="ml-1 px-1.5 py-0.2 rounded bg-purple-950/90 text-purple-300 border border-purple-700/60 text-[9px] font-extrabold flex items-center gap-0.5 shrink-0" title="Rewatching">
+                    <RotateCw className="w-2.5 h-2.5" />
+                    <span>Rewatch</span>
+                  </span>
+                )}
+              </div>
+              {isEpisodic && totalEp && (
+                <span className="text-[10px] text-zinc-400 font-semibold shrink-0">
+                  {currentEp}/{totalEp}
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="self-start flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-zinc-950/85 border border-zinc-800/80 backdrop-blur-md text-zinc-400 text-[10px] font-semibold">
+              <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
+              <span>Not Started</span>
+            </div>
+          )}
+        </div>
+
+        {/* Hover Quick Action Overlay */}
+        {catalogEntry && isEpisodic && onIncrementProgress && (
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              onIncrementProgress(catalogEntry);
+            }}
+            title={`Mark Ep ${currentEp + 1} watched`}
+            className="absolute top-2.5 right-2.5 z-10 opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-xl bg-red-600 hover:bg-red-500 text-white shadow-xl hover:scale-110 active:scale-95 cursor-pointer pointer-events-auto"
+          >
+            <div className="flex items-center gap-1 text-[11px] font-black">
+              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+              <span>1 Ep</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Card Info Details */}
+      <div className="p-3 sm:p-3.5 flex-1 flex flex-col justify-between space-y-2">
+        <div>
+          <div className="flex items-center justify-between gap-2 text-[11px] text-zinc-400 font-medium">
+            <span>{media.releaseYear || 'TBA'}</span>
+            <span className="text-zinc-500">•</span>
+            <span className="truncate">{media.studios?.[0] || media.networks?.[0] || media.status}</span>
+          </div>
+
+          <h3 className="text-sm font-bold text-white group-hover:text-red-400 transition-colors line-clamp-1 mt-1 leading-snug" title={media.title}>
+            {media.title}
+          </h3>
+
+          {media.originalTitle && media.originalTitle !== media.title && (
+            <p className="text-[11px] text-zinc-400 truncate mt-0.5">
+              {media.originalTitle}
+            </p>
+          )}
+        </div>
+
+        {/* Genres & Favorite Heart */}
+        <div className="flex items-center justify-between pt-1 border-t border-zinc-800/40">
+          <div className="flex items-center gap-1 overflow-hidden text-[10px] text-zinc-400">
+            {media.genres?.slice(0, 2).map((g) => (
+              <span key={g} className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">
+                {g}
+              </span>
+            ))}
+          </div>
+
+          {onToggleFavorite && catalogEntry && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFavorite(catalogEntry);
+              }}
+              className="p-1 rounded-md text-zinc-500 hover:text-rose-400 transition-colors"
+              title={isFavorite ? 'Remove from favorites' : 'Mark as favorite'}
+            >
+              <Heart className={`w-3.5 h-3.5 ${isFavorite ? 'fill-rose-500 text-rose-500' : ''}`} />
+            </button>
+          )}
+        </div>
+
+        {/* Quick Action Buttons: Want to Watch & Completed directly on Card */}
+        {onQuickSetStatus && (
+          <div className="grid grid-cols-2 gap-1.5 pt-1.5 border-t border-zinc-800/60 mt-0.5">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onQuickSetStatus(media, 'Want to Watch');
+              }}
+              className={`flex items-center justify-center gap-1 py-1 px-1.5 rounded-xl text-[10.5px] font-bold border transition-all ${userStatus === 'Want to Watch'
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm font-extrabold'
+                  : 'bg-zinc-950/70 hover:bg-zinc-800 text-zinc-400 hover:text-amber-300 border-zinc-800/80 hover:border-amber-500/40'
+                }`}
+              title="Add / Set status as Want to Watch"
+            >
+              <Bookmark className={`w-3 h-3 shrink-0 ${userStatus === 'Want to Watch' ? 'fill-amber-400 text-amber-400' : ''}`} />
+              <span className="truncate">Want to Watch</span>
+            </button>
+
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onQuickSetStatus(media, 'Completed');
+              }}
+              className={`flex items-center justify-center gap-1 py-1 px-1.5 rounded-xl text-[10.5px] font-bold border transition-all ${userStatus === 'Completed'
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm font-extrabold'
+                  : 'bg-zinc-950/70 hover:bg-zinc-800 text-zinc-400 hover:text-emerald-300 border-zinc-800/80 hover:border-emerald-500/40'
+                }`}
+              title="Add / Mark as Completed"
+            >
+              <CheckCircle2 className={`w-3 h-3 shrink-0 ${userStatus === 'Completed' ? 'text-emerald-400' : ''}`} />
+              <span className="truncate">Completed</span>
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

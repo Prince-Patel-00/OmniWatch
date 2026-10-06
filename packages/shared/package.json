@@ -1,0 +1,9 @@
+{
+  "name": "@omniwatch/shared",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Shared package loaded\""
+  }
+}
