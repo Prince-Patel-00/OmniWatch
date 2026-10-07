@@ -4,10 +4,11 @@ import { getCatalogStats } from '../db.js';
 
 const router = express.Router();
 
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
   try {
     const providers = orchestrator.getProviderStatus();
-    const stats = getCatalogStats();
+    const stats = await getCatalogStats();
+    const isNeon = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL);
 
     res.json({
       success: true,
@@ -15,7 +16,7 @@ router.get('/status', (req, res) => {
       version: '2.0.0',
       timestamp: new Date().toISOString(),
       database: {
-        engine: 'SQLite (node:sqlite WAL mode)',
+        engine: isNeon ? 'Neon Serverless PostgreSQL' : 'SQLite (node:sqlite WAL mode)',
         status: 'online',
         trackedTitlesCount: stats.totalTitles,
         watchedEpisodesCount: stats.watchedEpisodesCount

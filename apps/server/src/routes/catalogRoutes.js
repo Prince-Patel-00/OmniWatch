@@ -17,13 +17,13 @@ import {
 const router = express.Router();
 
 // GET /api/catalog
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { status, type, sort, favorite, search, genre, animeFormat, format, character, page, limit } = req.query;
     const pageNum = page ? Math.max(1, parseInt(page, 10) || 1) : undefined;
     const limitNum = limit ? Math.max(1, Math.min(100, parseInt(limit, 10) || 24)) : undefined;
 
-    const items = getCatalogItems({
+    const items = await getCatalogItems({
       status: status || 'All',
       type: type || 'All',
       sort: sort || 'updated_desc',
@@ -50,10 +50,10 @@ router.get('/', (req, res) => {
 });
 
 // GET /api/catalog/characters
-router.get('/characters', (req, res) => {
+router.get('/characters', async (req, res) => {
   try {
     const { limit = 25 } = req.query;
-    const characters = getCatalogCharacters({ limit: parseInt(limit, 10) || 25 });
+    const characters = await getCatalogCharacters({ limit: parseInt(limit, 10) || 25 });
     res.json({ success: true, data: characters });
   } catch (err) {
     console.error('Error fetching catalog characters:', err);
@@ -62,9 +62,9 @@ router.get('/characters', (req, res) => {
 });
 
 // GET /api/catalog/stats
-router.get('/stats', (req, res) => {
+router.get('/stats', async (req, res) => {
   try {
-    const stats = getCatalogStats();
+    const stats = await getCatalogStats();
     res.json({ success: true, data: stats });
   } catch (err) {
     console.error('Error fetching catalog stats:', err);
@@ -73,10 +73,10 @@ router.get('/stats', (req, res) => {
 });
 
 // GET /api/catalog/check/:canonicalId
-router.get('/check/:canonicalId', (req, res) => {
+router.get('/check/:canonicalId', async (req, res) => {
   try {
     const { canonicalId } = req.params;
-    const item = getCatalogItemByCanonicalId(canonicalId);
+    const item = await getCatalogItemByCanonicalId(canonicalId);
     res.json({
       success: true,
       inCatalog: Boolean(item),
@@ -89,9 +89,9 @@ router.get('/check/:canonicalId', (req, res) => {
 });
 
 // GET /api/catalog/export
-router.get('/backup/export', (req, res) => {
+router.get('/backup/export', async (req, res) => {
   try {
-    const backup = exportCatalogData();
+    const backup = await exportCatalogData();
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment; filename=omniwatch-backup-${Date.now()}.json`);
     res.json(backup);
@@ -102,10 +102,10 @@ router.get('/backup/export', (req, res) => {
 });
 
 // POST /api/catalog/import
-router.post('/backup/import', (req, res) => {
+router.post('/backup/import', async (req, res) => {
   try {
-    const result = importCatalogData(req.body);
-    res.json({ success: true, message: `Successfully restored ${result.importedCount} items.` });
+    const result = await importCatalogData(req.body);
+    res.json({ success: true, message: `Successfully restored ${result.importedCount || result.count} items.` });
   } catch (err) {
     console.error('Error importing catalog backup:', err);
     res.status(400).json({ success: false, error: err.message });
@@ -113,9 +113,9 @@ router.post('/backup/import', (req, res) => {
 });
 
 // GET /api/catalog/:id
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const item = getCatalogItem(req.params.id);
+    const item = await getCatalogItem(req.params.id);
     if (!item) {
       return res.status(404).json({ success: false, error: 'Catalog item not found' });
     }
@@ -127,7 +127,7 @@ router.get('/:id', (req, res) => {
 });
 
 // POST /api/catalog - Add or update title in catalog
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const payload = req.body;
     if (!payload.canonicalId || !payload.title) {
@@ -136,7 +136,7 @@ router.post('/', (req, res) => {
 
     // Try to enrich from canonical media if missing poster or backdrop
     if (!payload.posterUrl || !payload.backdropUrl) {
-      const canonical = getCanonicalMedia(payload.canonicalId);
+      const canonical = await getCanonicalMedia(payload.canonicalId);
       if (canonical) {
         payload.posterUrl = payload.posterUrl || canonical.posterUrl;
         payload.backdropUrl = payload.backdropUrl || canonical.backdropUrl;
@@ -146,7 +146,7 @@ router.post('/', (req, res) => {
       }
     }
 
-    const saved = upsertCatalogItem(payload);
+    const saved = await upsertCatalogItem(payload);
     res.json({ success: true, data: saved, message: `Saved "${saved.title}" to catalog.` });
   } catch (err) {
     console.error('Error saving to catalog:', err);
@@ -155,15 +155,15 @@ router.post('/', (req, res) => {
 });
 
 // PATCH /api/catalog/:id - Update status, rating, notes, favorite
-router.patch('/:id', (req, res) => {
+router.patch('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const existing = getCatalogItem(id);
+    const existing = await getCatalogItem(id);
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Catalog item not found' });
     }
 
-    const updated = upsertCatalogItem({
+    const updated = await upsertCatalogItem({
       ...existing,
       ...req.body,
       id
@@ -177,10 +177,10 @@ router.patch('/:id', (req, res) => {
 });
 
 // DELETE /api/catalog/:id
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const ok = deleteCatalogItem(id);
+    const ok = await deleteCatalogItem(id);
     if (!ok) {
       return res.status(404).json({ success: false, error: 'Item not found in catalog.' });
     }
@@ -192,7 +192,7 @@ router.delete('/:id', (req, res) => {
 });
 
 // POST /api/catalog/:id/progress - Toggle or set episode progress
-router.post('/:id/progress', (req, res) => {
+router.post('/:id/progress', async (req, res) => {
   try {
     const { id } = req.params;
     const { seasonNumber = 1, episodeNumber, isWatched = true } = req.body;
@@ -201,7 +201,7 @@ router.post('/:id/progress', (req, res) => {
       return res.status(400).json({ success: false, error: 'episodeNumber is required.' });
     }
 
-    const updated = toggleEpisodeProgress(id, parseInt(seasonNumber, 10), parseInt(episodeNumber, 10), Boolean(isWatched));
+    const updated = await toggleEpisodeProgress(id, parseInt(seasonNumber, 10), parseInt(episodeNumber, 10), Boolean(isWatched));
     res.json({ success: true, data: updated });
   } catch (err) {
     console.error('Error updating episode progress:', err);
@@ -210,12 +210,12 @@ router.post('/:id/progress', (req, res) => {
 });
 
 // POST /api/catalog/:id/batch-progress - Mark whole season as watched / unwatched
-router.post('/:id/batch-progress', (req, res) => {
+router.post('/:id/batch-progress', async (req, res) => {
   try {
     const { id } = req.params;
     const { seasonNumber = 1, episodeCount = 12, isWatched = true } = req.body;
 
-    const updated = batchSetSeasonProgress(
+    const updated = await batchSetSeasonProgress(
       id,
       parseInt(seasonNumber, 10),
       parseInt(episodeCount, 10),

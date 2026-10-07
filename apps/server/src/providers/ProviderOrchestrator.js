@@ -297,7 +297,7 @@ export class ProviderOrchestrator {
     const cleanQuery = (query || targetChar).trim();
 
     // 1. Check local cache first for instant hits (with character support)
-    const cachedHits = searchCachedMedia(cleanQuery, {
+    const cachedHits = await searchCachedMedia(cleanQuery, {
       type,
       genre,
       sort,
@@ -405,7 +405,7 @@ export class ProviderOrchestrator {
     // 4. Save newly discovered items to SQLite cache in background
     for (const item of mergedResults) {
       try {
-        saveCanonicalMedia(item);
+        await saveCanonicalMedia(item);
       } catch (err) {
         console.error('Failed to cache canonical item:', err.message);
       }
@@ -451,8 +451,8 @@ export class ProviderOrchestrator {
     return filtered.slice(0, limitNum);
   }
 
-  getPopularCharacters(options = {}) {
-    return getDistinctCharacters(options);
+  async getPopularCharacters(options = {}) {
+    return await getDistinctCharacters(options);
   }
 
   /**
@@ -538,7 +538,7 @@ export class ProviderOrchestrator {
     }
 
     if (rawResults.length === 0) {
-      const cached = getCachedTrending(type, limitNum, { animeFormat: activeAnimeFormat, page: pageNum, genre, sort });
+      const cached = await getCachedTrending(type, limitNum, { animeFormat: activeAnimeFormat, page: pageNum, genre, sort });
       return this.deduplicateEntities(cached);
     }
 
@@ -546,7 +546,7 @@ export class ProviderOrchestrator {
 
     for (const item of merged) {
       try {
-        saveCanonicalMedia(item);
+        await saveCanonicalMedia(item);
       } catch (e) {}
     }
 
@@ -599,14 +599,14 @@ export class ProviderOrchestrator {
     }
 
     if (rawResults.length === 0) {
-      const cached = getCachedTrending(type, limitNum, { animeFormat: activeAnimeFormat, page: pageNum, genre, sort });
+      const cached = await getCachedTrending(type, limitNum, { animeFormat: activeAnimeFormat, page: pageNum, genre, sort });
       return this.deduplicateEntities(cached);
     }
 
     const merged = this.deduplicateEntities(rawResults);
     for (const item of merged) {
       try {
-        saveCanonicalMedia(item);
+        await saveCanonicalMedia(item);
       } catch (e) {}
     }
 
@@ -636,7 +636,7 @@ export class ProviderOrchestrator {
   async getDetail(canonicalId, { forceRefresh = false } = {}) {
     if (!canonicalId) return null;
 
-    const cached = getCanonicalMedia(canonicalId);
+    const cached = await getCanonicalMedia(canonicalId);
     if (cached && !forceRefresh) {
       const now = Date.now();
       const lastSynced = new Date(cached.lastSyncedAt || 0).getTime();
@@ -676,7 +676,7 @@ export class ProviderOrchestrator {
           (cached.watchProviders || []).filter(cp => !(freshItem.watchProviders || []).some(fp => fp.name === cp.name && fp.region === cp.region))
         );
       }
-      return saveCanonicalMedia(freshItem);
+      return await saveCanonicalMedia(freshItem);
     }
 
     return cached;

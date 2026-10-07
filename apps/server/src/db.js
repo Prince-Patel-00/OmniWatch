@@ -3,6 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { generateDefaultMirrors, DEFAULT_MIRROR_REGISTRY } from '@omniwatch/shared';
+import * as neonDB from './db_neon.js';
+
+export function isNeon() {
+  return Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL);
+}
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -261,6 +267,7 @@ function initSchema(db) {
 }
 
 export function initDB() {
+  if (isNeon()) return neonDB.initDB();
   return getDB();
 }
 
@@ -271,6 +278,7 @@ export function initDB() {
  */
 
 export function saveCanonicalMedia(media) {
+  if (isNeon()) return neonDB.saveCanonicalMedia(media);
   if (!media || !media.id) return null;
   const db = getDB();
 
@@ -471,6 +479,7 @@ export function saveCanonicalMedia(media) {
 }
 
 export function getCanonicalMedia(canonicalId) {
+  if (isNeon()) return neonDB.getCanonicalMedia(canonicalId);
   const db = getDB();
   const row = db.prepare('SELECT * FROM cached_media WHERE id = ?').get(canonicalId);
   if (!row) return null;
@@ -642,6 +651,7 @@ function hydrateCanonicalMedia(db, row) {
 }
 
 export function addMediaSource(canonicalId, newSource) {
+  if (isNeon()) return neonDB.addMediaSource(canonicalId, newSource);
   const db = getDB();
   const row = db.prepare('SELECT sources_json, title, media_type, release_year FROM cached_media WHERE id = ?').get(canonicalId);
   if (!row) return null;
@@ -673,6 +683,7 @@ export function addMediaSource(canonicalId, newSource) {
 }
 
 export function deleteMediaSource(canonicalId, sourceId) {
+  if (isNeon()) return neonDB.deleteMediaSource(canonicalId, sourceId);
   const db = getDB();
   const row = db.prepare('SELECT sources_json, title, media_type, release_year FROM cached_media WHERE id = ?').get(canonicalId);
   if (!row) return null;
@@ -691,7 +702,9 @@ export function deleteMediaSource(canonicalId, sourceId) {
   return getCanonicalMedia(canonicalId);
 }
 
-export function searchCachedMedia(query, { type = 'All', genre = 'All', sort = 'popularity_desc', limit = 24, page = 1, animeFormat = 'All', format = 'All', character = null, searchMode = 'all', mainCharOnly = false } = {}) {
+export function searchCachedMedia(query, opts = {}) {
+  if (isNeon()) return neonDB.searchCachedMedia(query, opts.type || opts.mediaType);
+  const { type = 'All', genre = 'All', sort = 'popularity_desc', limit = 24, page = 1, animeFormat = 'All', format = 'All', character = null, searchMode = 'all', mainCharOnly = false } = opts;
   const db = getDB();
   let sql = 'SELECT * FROM cached_media WHERE 1=1';
   const params = [];
@@ -791,6 +804,7 @@ export function searchCachedMedia(query, { type = 'All', genre = 'All', sort = '
 }
 
 export function remapDuplicateCanonicalMedia(primaryId, duplicateId) {
+  if (isNeon()) return neonDB.remapDuplicateCanonicalMedia(primaryId, duplicateId);
   if (!primaryId || !duplicateId || primaryId === duplicateId) return;
   const db = getDB();
   try {
@@ -801,7 +815,9 @@ export function remapDuplicateCanonicalMedia(primaryId, duplicateId) {
   } catch (e) {}
 }
 
-export function getCachedTrending(type = 'All', limit = 24, { animeFormat = 'All', format = 'All', page = 1, genre = 'All', sort = 'popularity_desc' } = {}) {
+export function getCachedTrending(type = 'All', limit = 24, opts = {}) {
+  if (isNeon()) return neonDB.getCachedTrending({ type, limit, ...opts });
+  const { animeFormat = 'All', format = 'All', page = 1, genre = 'All', sort = 'popularity_desc' } = opts;
   const db = getDB();
   let sql = 'SELECT * FROM cached_media WHERE 1=1';
   const params = [];
@@ -855,7 +871,9 @@ export function getCachedTrending(type = 'All', limit = 24, { animeFormat = 'All
  * =========================================================================
  */
 
-export function getCatalogItems({ status = 'All', type = 'All', sort = 'updated_desc', favoriteOnly = false, genre = 'All', search = '', animeFormat = 'All', format = 'All', character = '', mainCharOnly = false, page, limit } = {}) {
+export function getCatalogItems(opts = {}) {
+  if (isNeon()) return neonDB.getCatalogItems(opts);
+  const { status = 'All', type = 'All', sort = 'updated_desc', favoriteOnly = false, genre = 'All', search = '', animeFormat = 'All', format = 'All', character = '', mainCharOnly = false, page, limit } = opts;
   const db = getDB();
   let sql = 'SELECT * FROM catalog_items WHERE 1=1';
   const params = [];
@@ -939,6 +957,7 @@ export function getCatalogItems({ status = 'All', type = 'All', sort = 'updated_
 }
 
 export function getCatalogItem(id) {
+  if (isNeon()) return neonDB.getCatalogItem(id);
   const db = getDB();
   const row = db.prepare('SELECT * FROM catalog_items WHERE id = ?').get(id);
   if (!row) return null;
@@ -946,6 +965,7 @@ export function getCatalogItem(id) {
 }
 
 export function getCatalogItemByCanonicalId(canonicalId) {
+  if (isNeon()) return neonDB.getCatalogItemByCanonicalId(canonicalId);
   const db = getDB();
   const row = db.prepare('SELECT * FROM catalog_items WHERE canonical_id = ?').get(canonicalId);
   if (!row) return null;
@@ -1028,6 +1048,7 @@ function hydrateCatalogItem(db, row) {
 }
 
 export function upsertCatalogItem(item) {
+  if (isNeon()) return neonDB.upsertCatalogItem(item);
   const db = getDB();
   const now = new Date().toISOString();
 
@@ -1143,6 +1164,7 @@ export function upsertCatalogItem(item) {
 }
 
 export function deleteCatalogItem(id) {
+  if (isNeon()) return neonDB.deleteCatalogItem(id);
   const db = getDB();
   db.prepare('DELETE FROM catalog_episode_progress WHERE catalog_item_id = ?').run(id);
   const res = db.prepare('DELETE FROM catalog_items WHERE id = ?').run(id);
@@ -1150,6 +1172,7 @@ export function deleteCatalogItem(id) {
 }
 
 export function toggleEpisodeProgress(catalogItemId, seasonNumber, episodeNumber, isWatched = true) {
+  if (isNeon()) return neonDB.toggleEpisodeProgress(catalogItemId, seasonNumber, episodeNumber, isWatched);
   const db = getDB();
   const now = new Date().toISOString();
 
@@ -1197,6 +1220,8 @@ export function toggleEpisodeProgress(catalogItemId, seasonNumber, episodeNumber
 }
 
 export function batchSetSeasonProgress(catalogItemId, seasonNumber, episodeCount, isWatched = true) {
+  if (isNeon()) return neonDB.batchSetSeasonProgress(catalogItemId, seasonNumber, Array.from({ length: episodeCount }, (_, i) => i + 1), isWatched);
+
   const db = getDB();
   const now = new Date().toISOString();
 
@@ -1250,6 +1275,7 @@ export function batchSetSeasonProgress(catalogItemId, seasonNumber, episodeCount
 }
 
 export function getCatalogStats() {
+  if (isNeon()) return neonDB.getCatalogStats();
   const db = getDB();
 
   const totalTitles = db.prepare('SELECT COUNT(*) as count FROM catalog_items').get().count;
@@ -1293,6 +1319,7 @@ export function getCatalogStats() {
 }
 
 export function exportCatalogData() {
+  if (isNeon()) return neonDB.exportCatalogData();
   const db = getDB();
   const catalog = db.prepare('SELECT * FROM catalog_items').all();
   const progress = db.prepare('SELECT * FROM catalog_episode_progress').all();
@@ -1306,6 +1333,7 @@ export function exportCatalogData() {
 }
 
 export function importCatalogData(data) {
+  if (isNeon()) return neonDB.importCatalogData(data);
   if (!data || !Array.isArray(data.catalog)) {
     throw new Error('Invalid catalog backup data format.');
   }
@@ -1361,6 +1389,7 @@ export function importCatalogData(data) {
  */
 
 export function getAllMirrorSources() {
+  if (isNeon()) return neonDB.getAllMirrorSources();
   const db = getDB();
   const rows = db.prepare('SELECT * FROM mirror_sources ORDER BY sort_order ASC, name ASC').all();
   return rows.map(r => ({
@@ -1384,6 +1413,7 @@ export function getAllMirrorSources() {
 }
 
 export function updateMirrorSourceDomain(id, newDomain, status = 'Working', latencyMs = 0, statusNote = null) {
+  if (isNeon()) return neonDB.updateMirrorSourceDomain(id, newDomain, status, latencyMs, statusNote);
   const db = getDB();
   db.prepare(`
     UPDATE mirror_sources 
@@ -1393,6 +1423,7 @@ export function updateMirrorSourceDomain(id, newDomain, status = 'Working', late
 }
 
 export function updateMirrorStatus(id, status, latencyMs, statusNote) {
+  if (isNeon()) return neonDB.updateMirrorStatus(id, status, latencyMs, statusNote);
   const db = getDB();
   db.prepare(`
     UPDATE mirror_sources 
@@ -1402,6 +1433,7 @@ export function updateMirrorStatus(id, status, latencyMs, statusNote) {
 }
 
 export function upsertMirrorSource(item) {
+  if (isNeon()) return neonDB.upsertMirrorSource(item);
   const db = getDB();
   db.prepare(`
     INSERT INTO mirror_sources (
@@ -1438,6 +1470,7 @@ export function upsertMirrorSource(item) {
 }
 
 export function deleteMirrorSourceItem(id) {
+  if (isNeon()) return neonDB.deleteMirrorSourceItem(id);
   const db = getDB();
   db.prepare('DELETE FROM mirror_sources WHERE id = ?').run(id);
 }
@@ -1446,7 +1479,9 @@ export function deleteMirrorSourceItem(id) {
  * Returns distinct characters (especially Main Characters) from cached media
  * for autocomplete, quick filter badges, and character exploration.
  */
-export function getDistinctCharacters({ type = 'All', role = 'MAIN', search = '', limit = 30 } = {}) {
+export function getDistinctCharacters(options = {}) {
+  if (isNeon()) return neonDB.getDistinctCharacters(options);
+  const { type = 'All', role = 'MAIN', search = '', limit = 30 } = options;
   const db = getDB();
   let sql = "SELECT cast_json, popularity_score, title, poster_url FROM cached_media WHERE cast_json IS NOT NULL AND cast_json != '[]'";
   const params = [];
@@ -1502,7 +1537,9 @@ export function getDistinctCharacters({ type = 'All', role = 'MAIN', search = ''
 /**
  * Returns distinct characters from items in the user's personal watchlist.
  */
-export function getCatalogCharacters({ limit = 25 } = {}) {
+export function getCatalogCharacters(options = {}) {
+  if (isNeon()) return neonDB.getCatalogCharacters(options);
+  const { limit = 25 } = options;
   const db = getDB();
   const rows = db.prepare(`
     SELECT cm.cast_json, ci.title, ci.user_status, ci.media_type, ci.poster_url

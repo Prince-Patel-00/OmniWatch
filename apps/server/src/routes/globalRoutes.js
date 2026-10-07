@@ -109,11 +109,11 @@ router.get('/search', async (req, res) => {
 });
 
 // GET /api/global/characters (Discover leading and popular characters)
-router.get('/characters', (req, res) => {
+router.get('/characters', async (req, res) => {
   try {
     const { type = 'All', search = '', limit = 30 } = req.query;
     const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 30));
-    const characters = orchestrator.getPopularCharacters({
+    const characters = await orchestrator.getPopularCharacters({
       type,
       search,
       limit: limitNum
@@ -160,7 +160,7 @@ router.post('/media/:id/refresh', async (req, res) => {
 router.post('/media/:id/sources', async (req, res) => {
   try {
     const { id } = req.params;
-    const updated = addMediaSource(id, req.body);
+    const updated = await addMediaSource(id, req.body);
     if (!updated) {
       return res.status(404).json({ success: false, error: 'Media not found' });
     }
@@ -175,7 +175,7 @@ router.post('/media/:id/sources', async (req, res) => {
 router.delete('/media/:id/sources/:sourceId', async (req, res) => {
   try {
     const { id, sourceId } = req.params;
-    const updated = deleteMediaSource(id, sourceId);
+    const updated = await deleteMediaSource(id, sourceId);
     if (!updated) {
       return res.status(404).json({ success: false, error: 'Media not found' });
     }

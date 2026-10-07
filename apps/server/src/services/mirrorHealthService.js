@@ -90,7 +90,7 @@ export async function checkMirrorSource(mirror) {
       currentResult.finalHost !== mirror.currentDomain.toLowerCase() &&
       validCandidates.includes(currentResult.finalHost)
     ) {
-      updateMirrorSourceDomain(
+      await updateMirrorSourceDomain(
         mirror.id,
         currentResult.finalHost,
         'Working',
@@ -109,7 +109,7 @@ export async function checkMirrorSource(mirror) {
     }
 
     // Normal active working state
-    updateMirrorStatus(
+    await updateMirrorStatus(
       mirror.id,
       'Working',
       currentResult.latencyMs,
@@ -136,7 +136,7 @@ export async function checkMirrorSource(mirror) {
     if (candidateResult.isWorking) {
       // Auto-migrate in DB to the working candidate!
       const activeDomain = candidate.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-      updateMirrorSourceDomain(
+      await updateMirrorSourceDomain(
         mirror.id,
         activeDomain,
         'Working',
@@ -159,7 +159,7 @@ export async function checkMirrorSource(mirror) {
   }
 
   // 3. No candidate domain succeeded -> Mark as Offline
-  updateMirrorStatus(
+  await updateMirrorStatus(
     mirror.id,
     'Offline',
     0,
@@ -190,7 +190,7 @@ export async function checkAllMirrors(concurrency = 5) {
   console.log('[MirrorHealth] 🚀 Starting mirror sources domain health verification...');
 
   try {
-    const allMirrors = getAllMirrorSources().filter((m) => m.isEnabled);
+    const allMirrors = (await getAllMirrorSources()).filter((m) => m.isEnabled);
     const results = [];
     const queue = [...allMirrors];
 

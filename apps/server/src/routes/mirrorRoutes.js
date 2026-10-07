@@ -17,9 +17,9 @@ const router = express.Router();
  * GET /api/mirrors
  * Returns all configured streaming and download mirror sources
  */
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const mirrors = getAllMirrorSources();
+    const mirrors = await getAllMirrorSources();
     res.json({
       success: true,
       count: mirrors.length,
@@ -39,14 +39,14 @@ router.post('/check', async (req, res) => {
     const { id } = req.body || {};
 
     if (id) {
-      const all = getAllMirrorSources();
+      const all = await getAllMirrorSources();
       const mirror = all.find((m) => m.id === id);
       if (!mirror) {
         return res.status(404).json({ success: false, error: `Mirror source "${id}" not found` });
       }
 
       const result = await checkMirrorSource(mirror);
-      const updatedList = getAllMirrorSources();
+      const updatedList = await getAllMirrorSources();
       return res.json({
         success: true,
         result,
@@ -56,7 +56,7 @@ router.post('/check', async (req, res) => {
 
     // Check all mirrors
     const summary = await checkAllMirrors();
-    const updatedList = getAllMirrorSources();
+    const updatedList = await getAllMirrorSources();
     return res.json({
       success: true,
       summary,
@@ -88,7 +88,7 @@ router.post('/probe', async (req, res) => {
  * POST /api/mirrors
  * Create or replace a mirror source
  */
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const item = req.body;
     if (!item || !item.name || !item.currentDomain || !item.searchTemplate) {
@@ -102,8 +102,9 @@ router.post('/', (req, res) => {
       item.id = `custom_${item.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
     }
 
-    upsertMirrorSource(item);
-    const updated = getAllMirrorSources().find((m) => m.id === item.id);
+    await upsertMirrorSource(item);
+    const all = await getAllMirrorSources();
+    const updated = all.find((m) => m.id === item.id);
     res.json({ success: true, data: updated });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -117,7 +118,7 @@ router.post('/', (req, res) => {
 router.patch('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const all = getAllMirrorSources();
+    const all = await getAllMirrorSources();
     const existing = all.find((m) => m.id === id);
     if (!existing) {
       return res.status(404).json({ success: false, error: `Mirror source "${id}" not found` });
@@ -130,14 +131,15 @@ router.patch('/:id', async (req, res) => {
       id
     };
 
-    upsertMirrorSource(merged);
+    await upsertMirrorSource(merged);
 
     // If new domain was supplied, optionally re-probe it
     if (updates.currentDomain && updates.currentDomain !== existing.currentDomain) {
       await checkMirrorSource(merged);
     }
 
-    const updated = getAllMirrorSources().find((m) => m.id === id);
+    const updatedList = await getAllMirrorSources();
+    const updated = updatedList.find((m) => m.id === id);
     res.json({ success: true, data: updated });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -148,10 +150,10 @@ router.patch('/:id', async (req, res) => {
  * DELETE /api/mirrors/:id
  * Deletes a mirror source
  */
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    deleteMirrorSourceItem(id);
+    await deleteMirrorSourceItem(id);
     res.json({ success: true, message: `Mirror source "${id}" removed` });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

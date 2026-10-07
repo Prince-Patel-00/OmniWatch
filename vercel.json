@@ -1,0 +1,21 @@
+{
+  "buildCommand": "npm run build --workspace=apps/client",
+  "outputDirectory": "apps/client/dist",
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/mirrors/check",
+      "schedule": "0 */6 * * *"
+    }
+  ]
+}
