@@ -22,7 +22,8 @@ import {
   Copy,
   Download,
   ShieldCheck,
-  Radio
+  Radio,
+  User
 } from 'lucide-react';
 import EpisodeGuide from './EpisodeGuide.jsx';
 import {
@@ -51,7 +52,8 @@ export default function MediaDetailModal({
   onRefreshMedia,
   onWatchTrailer,
   onSelectRelated,
-  onShowToast
+  onShowToast,
+  onSelectCharacter
 }) {
   // Default to 'sources' tab so streaming mirrors appear immediately as requested
   const [activeTab, setActiveTab] = useState('sources'); // 'sources' | 'episodes' | 'overview' | 'watch' | 'trailers'
@@ -910,38 +912,70 @@ export default function MediaDetailModal({
                     {/* Cast & Characters */}
                     {media.cast && media.cast.length > 0 && (
                       <div className="space-y-3">
-                        <h3 className="text-sm font-extrabold uppercase tracking-wider text-zinc-400">
-                          Top Cast & Characters
-                        </h3>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                          {media.cast.slice(0, 6).map((c, i) => (
-                            <div
-                              key={i}
-                              className="flex items-center gap-3 p-2.5 rounded-xl bg-zinc-900/60 border border-zinc-800/80"
-                            >
-                              {c.characterImage || c.actorImage ? (
-                                <img
-                                  src={c.characterImage || c.actorImage}
-                                  alt={c.character || c.actor}
-                                  className="w-10 h-10 rounded-lg object-cover bg-zinc-800 shrink-0"
-                                />
-                              ) : (
-                                <div className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center font-bold text-zinc-500 text-xs">
-                                  {(c.character || c.actor || '?').charAt(0)}
-                                </div>
-                              )}
-                              <div className="overflow-hidden">
-                                <p className="text-xs font-bold text-white truncate">
-                                  {c.character || c.actor}
-                                </p>
-                                {c.actor && c.character && (
-                                  <p className="text-[10px] text-zinc-400 truncate">
-                                    {c.actor}
-                                  </p>
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-sm font-extrabold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+                            <User className="w-4 h-4 text-red-400" />
+                            <span>Top Cast & Characters</span>
+                          </h3>
+                          <span className="text-[11px] text-zinc-500 font-medium">Click character to find titles</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                          {media.cast.slice(0, 9).map((c, i) => {
+                            const isLead = c.role === 'MAIN';
+                            const charName = c.character || c.actor;
+                            return (
+                              <div
+                                key={i}
+                                onClick={() => {
+                                  if (onSelectCharacter && c.character) {
+                                    onSelectCharacter(c.character);
+                                    onClose();
+                                  }
+                                }}
+                                title={c.character ? `Click to filter all titles starring "${c.character}"` : ''}
+                                className={`group flex items-center gap-3 p-2.5 rounded-xl border transition-all ${
+                                  onSelectCharacter && c.character 
+                                    ? 'bg-zinc-900/70 hover:bg-zinc-800/90 border-zinc-800/80 hover:border-red-500/50 cursor-pointer shadow-sm hover:shadow-red-950/20 hover:scale-[1.02]' 
+                                    : 'bg-zinc-900/60 border-zinc-800/80'
+                                }`}
+                              >
+                                {c.characterImage || c.actorImage ? (
+                                  <img
+                                    src={c.characterImage || c.actorImage}
+                                    alt={charName}
+                                    className="w-11 h-11 rounded-lg object-cover bg-zinc-800 shrink-0 ring-1 ring-zinc-700/60 group-hover:ring-red-500/40 transition-all"
+                                  />
+                                ) : (
+                                  <div className="w-11 h-11 rounded-lg bg-zinc-800 flex items-center justify-center font-bold text-zinc-400 text-xs shrink-0">
+                                    {(charName || '?').charAt(0)}
+                                  </div>
                                 )}
+                                <div className="overflow-hidden flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 justify-between">
+                                    <p className="text-xs font-bold text-white truncate group-hover:text-red-300 transition-colors">
+                                      {charName}
+                                    </p>
+                                    {isLead && (
+                                      <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-red-950/80 text-red-300 border border-red-800/60 shrink-0">
+                                        Lead
+                                      </span>
+                                    )}
+                                  </div>
+                                  {c.actor && c.character && (
+                                    <p className="text-[10px] text-zinc-400 truncate mt-0.5">
+                                      {c.actor}
+                                    </p>
+                                  )}
+                                  {onSelectCharacter && c.character && (
+                                    <span className="text-[9.5px] font-semibold text-red-400/90 group-hover:text-red-400 flex items-center gap-0.5 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <span>Find titles</span>
+                                      <ChevronRight className="w-2.5 h-2.5" />
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}

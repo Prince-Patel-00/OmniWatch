@@ -35,7 +35,7 @@ export class AniListProvider extends BaseProvider {
     return data.data;
   }
 
-  normalizeAniListMedia(alItem) {
+  normalizeAniListMedia(alItem, matchedChar = null) {
     if (!alItem) return null;
 
     const titleEnglish = alItem.title?.english;
@@ -71,13 +71,29 @@ export class AniListProvider extends BaseProvider {
 
     const studios = (alItem.studios?.nodes || []).map(n => n.name);
 
-    const cast = (alItem.characters?.edges || []).map(edge => ({
+    let cast = (alItem.characters?.edges || []).map(edge => ({
       character: edge.node?.name?.full,
       characterImage: edge.node?.image?.medium,
       actor: edge.voiceActors?.[0]?.name?.full || null,
       actorImage: edge.voiceActors?.[0]?.image?.medium || null,
-      role: edge.role
+      role: edge.role || 'SUPPORTING'
     }));
+
+    if (matchedChar && matchedChar.name) {
+      const existingIdx = cast.findIndex(c => (c.character || '').toLowerCase() === matchedChar.name.toLowerCase());
+      if (existingIdx >= 0) {
+        cast[existingIdx].role = matchedChar.role || cast[existingIdx].role || 'MAIN';
+        if (matchedChar.image) cast[existingIdx].characterImage = matchedChar.image;
+      } else {
+        cast.unshift({
+          character: matchedChar.name,
+          characterImage: matchedChar.image || null,
+          actor: null,
+          actorImage: null,
+          role: matchedChar.role || 'MAIN'
+        });
+      }
+    }
 
     // Trailers
     const trailers = [];
@@ -198,6 +214,11 @@ export class AniListProvider extends BaseProvider {
       networks: studios,
       creators: studios,
       cast,
+      matchedCharacter: matchedChar || (cast.find(c => c.role === 'MAIN') ? {
+        name: cast.find(c => c.role === 'MAIN').character,
+        image: cast.find(c => c.role === 'MAIN').characterImage,
+        role: 'MAIN'
+      } : null),
       totalSeasons: isMovie ? 1 : 1,
       totalEpisodes: alItem.episodes || null,
       nextAiringEpisode: alItem.nextAiringEpisode?.episode || null,
@@ -236,7 +257,11 @@ export class AniListProvider extends BaseProvider {
     }
   }
 
-  async search(query, { page = 1, perPage = 20, format = null, isMovie = null, genre = 'All', sort = 'popularity_desc' } = {}) {
+  async search(query, { page = 1, perPage = 20, format = null, isMovie = null, genre = 'All', sort = 'popularity_desc', character = null, searchMode = 'all' } = {}) {
+    if (searchMode === 'character' || (character && character.trim())) {
+      return this.searchByCharacter(character || query, { page, perPage, format, isMovie, genre, sort, mainOnly: true });
+    }
+
     const gql = `
       query SearchAnime($search: String, $page: Int, $perPage: Int, $format: MediaFormat, $format_not: MediaFormat, $genre: String, $sort: [MediaSort]) {
         Page(page: $page, perPage: $perPage) {
@@ -257,6 +282,13 @@ export class AniListProvider extends BaseProvider {
             nextAiringEpisode { airingAt timeUntilAiring episode }
             trailer { id site }
             externalLinks { site url type icon }
+            characters(sort: ROLE, perPage: 4) {
+              edges {
+                role
+                node { name { full } image { medium } }
+                voiceActors(language: JAPANESE) { name { full } image { medium } }
+              }
+            }
           }
         }
       }
@@ -293,6 +325,109 @@ export class AniListProvider extends BaseProvider {
     }
   }
 
+  /**
+   * Search Anime directly by character name and filter by Lead / Main character status
+   */
+  async searchByCharacter(characterQuery, { page = 1, perPage = 20, format = null, isMovie = null, genre = 'All', sort = 'popularity_desc', mainOnly = false } = {}) {
+    if (!characterQuery || !characterQuery.trim()) return [];
+
+    const gql = `
+      query SearchByCharacter($search: String, $page: Int, $perPage: Int) {
+        Page(page: $page, perPage: 8) {
+          characters(search: $search) {
+            id
+            name { full native alternative }
+            image { large medium }
+            media(type: ANIME, sort: POPULARITY_DESC, perPage: $perPage) {
+              edges {
+                characterRole
+                node {
+                  id
+                  title { english romaji native }
+                  description
+                  format
+                  status
+                  startDate { year month day }
+                  episodes
+                  duration
+                  coverImage { extraLarge large medium }
+                  bannerImage
+                  genres
+                  averageScore
+                  popularity
+                  nextAiringEpisode { airingAt timeUntilAiring episode }
+                  trailer { id site }
+                  externalLinks { site url type icon }
+                  characters(sort: ROLE, perPage: 4) {
+                    edges {
+                      role
+                      node { name { full } image { medium } }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    try {
+      const data = await this.executeGraphQL(gql, {
+        search: characterQuery.trim(),
+        page: Math.max(1, page),
+        perPage: Math.min(25, perPage || 20)
+      });
+
+      const characters = data?.Page?.characters || [];
+      const results = [];
+      const seenMediaIds = new Set();
+
+      for (const char of characters) {
+        const charName = char.name?.full || 'Unknown';
+        const charImage = char.image?.medium || char.image?.large || null;
+        const mediaEdges = char.media?.edges || [];
+
+        for (const edge of mediaEdges) {
+          if (!edge.node) continue;
+          if (seenMediaIds.has(edge.node.id)) continue;
+          if (mainOnly && edge.characterRole !== 'MAIN') continue;
+
+          // Format filtering
+          if (format === 'Movie' || isMovie === true) {
+            if (edge.node.format !== 'MOVIE') continue;
+          } else if (format === 'Series') {
+            if (edge.node.format === 'MOVIE') continue;
+          }
+
+          // Genre filtering
+          if (genre && genre !== 'All') {
+            const genres = edge.node.genres || [];
+            if (!genres.some(g => g.toLowerCase() === genre.toLowerCase())) continue;
+          }
+
+          seenMediaIds.add(edge.node.id);
+          const matchedCharInfo = {
+            id: char.id,
+            name: charName,
+            image: charImage,
+            role: edge.characterRole
+          };
+
+          const normalized = this.normalizeAniListMedia(edge.node, matchedCharInfo);
+          if (normalized) {
+            results.push(normalized);
+          }
+        }
+      }
+
+      return results;
+    } catch (err) {
+      console.error('[AniListProvider] searchByCharacter error:', err.message);
+      return [];
+    }
+  }
+
   async getTrending({ page = 1, perPage = 24, format = null, isMovie = false, genre = 'All', sort = 'popularity_desc' } = {}) {
     const gql = `
       query GetTrendingAnime($page: Int, $perPage: Int, $format: MediaFormat, $format_not: MediaFormat, $genre: String, $sort: [MediaSort]) {
@@ -315,6 +450,13 @@ export class AniListProvider extends BaseProvider {
             nextAiringEpisode { airingAt timeUntilAiring episode }
             trailer { id site }
             externalLinks { site url type icon }
+            characters(sort: ROLE, perPage: 4) {
+              edges {
+                role
+                node { name { full } image { medium } }
+                voiceActors(language: JAPANESE) { name { full } image { medium } }
+              }
+            }
           }
         }
       }
@@ -369,6 +511,13 @@ export class AniListProvider extends BaseProvider {
             nextAiringEpisode { airingAt timeUntilAiring episode }
             trailer { id site }
             externalLinks { site url type icon }
+            characters(sort: ROLE, perPage: 4) {
+              edges {
+                role
+                node { name { full } image { medium } }
+                voiceActors(language: JAPANESE) { name { full } image { medium } }
+              }
+            }
           }
         }
       }

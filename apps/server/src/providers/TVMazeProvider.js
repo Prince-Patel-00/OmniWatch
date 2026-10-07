@@ -42,11 +42,12 @@ export class TVMazeProvider extends BaseProvider {
 
     // Cast
     const rawCast = embedded.cast || show._embedded?.cast || [];
-    const cast = rawCast.slice(0, 8).map(c => ({
+    const cast = rawCast.slice(0, 8).map((c, idx) => ({
       character: c.character?.name,
       characterImage: c.character?.image?.medium,
       actor: c.person?.name,
-      actorImage: c.person?.image?.medium
+      actorImage: c.person?.image?.medium,
+      role: idx < 3 ? 'MAIN' : 'SUPPORTING'
     }));
 
     // Watch Providers from network / webChannel

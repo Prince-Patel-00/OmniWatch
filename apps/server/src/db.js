@@ -598,6 +598,16 @@ function hydrateCanonicalMedia(db, row) {
     networks: JSON.parse(row.networks_json || '[]'),
     creators: JSON.parse(row.creators_json || '[]'),
     cast: JSON.parse(row.cast_json || '[]'),
+    mainCharacters: (() => {
+      const parsed = JSON.parse(row.cast_json || '[]');
+      const mains = parsed.filter(c => c.role === 'MAIN');
+      return (mains.length > 0 ? mains : parsed).slice(0, 4).map(c => ({
+        name: c.character,
+        image: c.characterImage || c.actorImage || null,
+        role: c.role || 'MAIN',
+        actor: c.actor || null
+      }));
+    })(),
     relatedMedia,
     sources,
     totalSeasons: row.total_seasons,
@@ -681,31 +691,36 @@ export function deleteMediaSource(canonicalId, sourceId) {
   return getCanonicalMedia(canonicalId);
 }
 
-export function searchCachedMedia(query, { type = 'All', genre = 'All', sort = 'popularity_desc', limit = 24, page = 1, animeFormat = 'All', format = 'All' } = {}) {
+export function searchCachedMedia(query, { type = 'All', genre = 'All', sort = 'popularity_desc', limit = 24, page = 1, animeFormat = 'All', format = 'All', character = null, searchMode = 'all', mainCharOnly = false } = {}) {
   const db = getDB();
   let sql = 'SELECT * FROM cached_media WHERE 1=1';
   const params = [];
 
-  if (query && query.trim()) {
+  const targetChar = (character || (searchMode === 'character' ? query : '') || '').trim().toLowerCase();
+
+  if (targetChar) {
+    sql += ' AND LOWER(cast_json) LIKE ?';
+    params.push(`%${targetChar}%`);
+  } else if (query && query.trim()) {
     const rawQ = query.trim().toLowerCase();
     const cleanQ = rawQ.replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
     const tokens = cleanQ.split(/\s+/).filter(t => t.length > 0);
     const qLike = `%${rawQ}%`;
 
     if (tokens.length > 1) {
-      // Allow exact substring match OR all words matching across title fields
+      // Allow exact substring match OR all words matching across title and cast fields
       const tokenClause = tokens
-        .map(() => '(LOWER(title) LIKE ? OR LOWER(original_title) LIKE ? OR LOWER(romaji_title) LIKE ? OR slug LIKE ?)')
+        .map(() => '(LOWER(title) LIKE ? OR LOWER(original_title) LIKE ? OR LOWER(romaji_title) LIKE ? OR slug LIKE ? OR LOWER(cast_json) LIKE ?)')
         .join(' AND ');
-      sql += ` AND ((LOWER(title) LIKE ? OR LOWER(original_title) LIKE ? OR LOWER(romaji_title) LIKE ? OR slug LIKE ?) OR (${tokenClause}))`;
-      params.push(qLike, qLike, qLike, `%${rawQ.replace(/[^a-z0-9]+/g, '-')}%`);
+      sql += ` AND ((LOWER(title) LIKE ? OR LOWER(original_title) LIKE ? OR LOWER(romaji_title) LIKE ? OR slug LIKE ? OR LOWER(cast_json) LIKE ?) OR (${tokenClause}))`;
+      params.push(qLike, qLike, qLike, `%${rawQ.replace(/[^a-z0-9]+/g, '-')}%`, qLike);
       for (const t of tokens) {
         const tLike = `%${t}%`;
-        params.push(tLike, tLike, tLike, tLike);
+        params.push(tLike, tLike, tLike, tLike, tLike);
       }
     } else {
-      sql += ' AND (LOWER(title) LIKE ? OR LOWER(original_title) LIKE ? OR LOWER(romaji_title) LIKE ? OR slug LIKE ?)';
-      params.push(qLike, qLike, qLike, `%${rawQ.replace(/[^a-z0-9]+/g, '-')}%`);
+      sql += ' AND (LOWER(title) LIKE ? OR LOWER(original_title) LIKE ? OR LOWER(romaji_title) LIKE ? OR slug LIKE ? OR LOWER(cast_json) LIKE ?)';
+      params.push(qLike, qLike, qLike, `%${rawQ.replace(/[^a-z0-9]+/g, '-')}%`, qLike);
     }
   }
 
@@ -748,7 +763,31 @@ export function searchCachedMedia(query, { type = 'All', genre = 'All', sort = '
   params.push(limitNum, offset);
 
   const rows = db.prepare(sql).all(...params);
-  return rows.map(r => hydrateCanonicalMedia(db, r));
+  let results = rows.map(r => hydrateCanonicalMedia(db, r));
+
+  if (targetChar) {
+    if (mainCharOnly) {
+      results = results.filter(item => {
+        return (item.cast || []).some(c => 
+          (c.character || '').toLowerCase().includes(targetChar) && 
+          (c.role === 'MAIN' || !c.role)
+        );
+      });
+    }
+
+    for (const item of results) {
+      const match = (item.cast || []).find(c => (c.character || '').toLowerCase().includes(targetChar));
+      if (match) {
+        item.matchedCharacter = {
+          name: match.character,
+          image: match.characterImage || match.actorImage || null,
+          role: match.role || 'MAIN'
+        };
+      }
+    }
+  }
+
+  return results;
 }
 
 export function remapDuplicateCanonicalMedia(primaryId, duplicateId) {
@@ -816,7 +855,7 @@ export function getCachedTrending(type = 'All', limit = 24, { animeFormat = 'All
  * =========================================================================
  */
 
-export function getCatalogItems({ status = 'All', type = 'All', sort = 'updated_desc', favoriteOnly = false, genre = 'All', search = '', animeFormat = 'All', format = 'All', page, limit } = {}) {
+export function getCatalogItems({ status = 'All', type = 'All', sort = 'updated_desc', favoriteOnly = false, genre = 'All', search = '', animeFormat = 'All', format = 'All', character = '', mainCharOnly = false, page, limit } = {}) {
   const db = getDB();
   let sql = 'SELECT * FROM catalog_items WHERE 1=1';
   const params = [];
@@ -847,8 +886,15 @@ export function getCatalogItems({ status = 'All', type = 'All', sort = 'updated_
   }
 
   if (search && search.trim()) {
-    sql += ' AND LOWER(title) LIKE ?';
-    params.push(`%${search.trim().toLowerCase()}%`);
+    const sTerm = `%${search.trim().toLowerCase()}%`;
+    sql += ' AND (LOWER(title) LIKE ? OR canonical_id IN (SELECT id FROM cached_media WHERE LOWER(cast_json) LIKE ?) OR id IN (SELECT id FROM cached_media WHERE LOWER(cast_json) LIKE ?))';
+    params.push(sTerm, sTerm, sTerm);
+  }
+
+  if (character && character.trim()) {
+    const cTerm = `%${character.trim().toLowerCase()}%`;
+    sql += ' AND (canonical_id IN (SELECT id FROM cached_media WHERE LOWER(cast_json) LIKE ?) OR id IN (SELECT id FROM cached_media WHERE LOWER(cast_json) LIKE ?))';
+    params.push(cTerm, cTerm);
   }
 
   if (genre && genre !== 'All') {
@@ -917,11 +963,17 @@ function hydrateCatalogItem(db, row) {
   const isMovie = row.format === 'Movie' || row.media_type === 'Movie';
   const format = row.format || (isMovie ? 'Movie' : 'Series');
 
-  const cached = row.canonical_id ? db.prepare('SELECT genres_json FROM cached_media WHERE id = ?').get(row.canonical_id) : null;
+  const cached = row.canonical_id ? db.prepare('SELECT genres_json, cast_json FROM cached_media WHERE id = ?').get(row.canonical_id) : null;
   let genres = [];
+  let cast = [];
   try {
     if (cached && cached.genres_json) {
       genres = JSON.parse(cached.genres_json);
+    }
+  } catch (e) {}
+  try {
+    if (cached && cached.cast_json) {
+      cast = JSON.parse(cached.cast_json);
     }
   } catch (e) {}
   if (!genres || genres.length === 0) {
@@ -929,6 +981,16 @@ function hydrateCatalogItem(db, row) {
       genres = JSON.parse(row.tags_json || '[]');
     } catch (e) {}
   }
+
+  const mainCharacters = (() => {
+    const mains = cast.filter(c => c.role === 'MAIN');
+    return (mains.length > 0 ? mains : cast).slice(0, 3).map(c => ({
+      name: c.character,
+      image: c.characterImage || c.actorImage || null,
+      role: c.role || 'MAIN',
+      actor: c.actor || null
+    }));
+  })();
 
   return {
     id: row.id,
@@ -950,6 +1012,8 @@ function hydrateCatalogItem(db, row) {
     notes: row.notes,
     genres: genres || [],
     tags: JSON.parse(row.tags_json || '[]'),
+    cast,
+    mainCharacters,
     startedAt: row.started_at,
     completedAt: row.completed_at,
     lastWatchedAt: row.last_watched_at,
@@ -1376,4 +1440,109 @@ export function upsertMirrorSource(item) {
 export function deleteMirrorSourceItem(id) {
   const db = getDB();
   db.prepare('DELETE FROM mirror_sources WHERE id = ?').run(id);
+}
+
+/**
+ * Returns distinct characters (especially Main Characters) from cached media
+ * for autocomplete, quick filter badges, and character exploration.
+ */
+export function getDistinctCharacters({ type = 'All', role = 'MAIN', search = '', limit = 30 } = {}) {
+  const db = getDB();
+  let sql = "SELECT cast_json, popularity_score, title, poster_url FROM cached_media WHERE cast_json IS NOT NULL AND cast_json != '[]'";
+  const params = [];
+  if (type && type !== 'All') {
+    sql += ' AND media_type = ?';
+    params.push(type);
+  }
+  sql += ' ORDER BY popularity_score DESC LIMIT 250';
+  const rows = db.prepare(sql).all(...params);
+
+  const charMap = new Map();
+  const searchLower = (search || '').toLowerCase().trim();
+
+  for (const row of rows) {
+    try {
+      const cast = JSON.parse(row.cast_json || '[]');
+      for (const c of cast) {
+        if (!c.character) continue;
+        const charName = c.character.trim();
+        const isMain = c.role === 'MAIN' || !c.role;
+        if (role === 'MAIN' && !isMain) continue;
+        if (searchLower && !charName.toLowerCase().includes(searchLower)) continue;
+
+        const key = charName.toLowerCase();
+        if (!charMap.has(key)) {
+          charMap.set(key, {
+            name: charName,
+            image: c.characterImage || c.actorImage || row.poster_url || null,
+            role: c.role || 'MAIN',
+            appearances: 1,
+            mediaTitles: [row.title],
+            actor: c.actor || null
+          });
+        } else {
+          const entry = charMap.get(key);
+          entry.appearances += 1;
+          if (!entry.image && (c.characterImage || c.actorImage)) {
+            entry.image = c.characterImage || c.actorImage;
+          }
+          if (!entry.mediaTitles.includes(row.title) && entry.mediaTitles.length < 3) {
+            entry.mediaTitles.push(row.title);
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  return Array.from(charMap.values())
+    .sort((a, b) => b.appearances - a.appearances)
+    .slice(0, limit);
+}
+
+/**
+ * Returns distinct characters from items in the user's personal watchlist.
+ */
+export function getCatalogCharacters({ limit = 25 } = {}) {
+  const db = getDB();
+  const rows = db.prepare(`
+    SELECT cm.cast_json, ci.title, ci.user_status, ci.media_type, ci.poster_url
+    FROM catalog_items ci
+    JOIN cached_media cm ON ci.canonical_id = cm.id OR ci.id = cm.id
+    WHERE cm.cast_json IS NOT NULL AND cm.cast_json != '[]'
+  `).all();
+
+  const charMap = new Map();
+  for (const row of rows) {
+    try {
+      const cast = JSON.parse(row.cast_json || '[]');
+      for (const c of cast) {
+        if (!c.character) continue;
+        const charName = c.character.trim();
+        const isMain = c.role === 'MAIN' || !c.role;
+        const key = charName.toLowerCase();
+        if (!charMap.has(key)) {
+          charMap.set(key, {
+            name: charName,
+            image: c.characterImage || c.actorImage || row.poster_url || null,
+            role: c.role || 'MAIN',
+            count: 1,
+            titles: [row.title]
+          });
+        } else {
+          const entry = charMap.get(key);
+          entry.count += 1;
+          if (!entry.image && (c.characterImage || c.actorImage)) {
+            entry.image = c.characterImage || c.actorImage;
+          }
+          if (!entry.titles.includes(row.title)) {
+            entry.titles.push(row.title);
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  return Array.from(charMap.values())
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
 }

@@ -9,7 +9,9 @@ import {
   BookmarkCheck,
   Bookmark,
   CheckCircle2,
-  RotateCw
+  RotateCw,
+  User,
+  Sparkles
 } from 'lucide-react';
 import { formatTimeUntil } from '@omniwatch/shared';
 
@@ -19,7 +21,8 @@ export default function MediaCard({
   onClick,
   onIncrementProgress,
   onToggleFavorite,
-  onQuickSetStatus
+  onQuickSetStatus,
+  onSelectCharacter
 }) {
   const isAiring = media.status === 'Airing';
   const timeUntil = media.nextAiringAt ? formatTimeUntil(media.nextAiringAt) : null;
@@ -139,6 +142,53 @@ export default function MediaCard({
               {media.originalTitle}
             </p>
           )}
+
+          {/* Lead / Main Characters Row */}
+          {(() => {
+            const chars = media.mainCharacters || (media.cast || []).filter(c => c.role === 'MAIN');
+            const displayList = (chars && chars.length > 0 ? chars : (media.cast || [])).slice(0, 2);
+            if (!displayList || displayList.length === 0) return null;
+            return (
+              <div className="flex items-center gap-1.5 mt-2 pt-1 border-t border-zinc-800/50 overflow-hidden">
+                <span className="text-[9.5px] font-bold text-zinc-400 shrink-0 uppercase tracking-wider flex items-center gap-0.5" title="Main character(s)">
+                  <User className="w-2.5 h-2.5 text-zinc-400" />
+                </span>
+                <div className="flex items-center gap-1.5 overflow-hidden">
+                  {displayList.map((c, i) => {
+                    const cName = c.name || c.character;
+                    const cImg = c.image || c.characterImage || c.actorImage;
+                    if (!cName) return null;
+                    return (
+                      <span
+                        key={i}
+                        onClick={(e) => {
+                          if (onSelectCharacter) {
+                            e.stopPropagation();
+                            onSelectCharacter(cName);
+                          }
+                        }}
+                        title={`Filter by lead character: ${cName}`}
+                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium max-w-[125px] truncate transition-colors ${
+                          onSelectCharacter 
+                            ? 'bg-zinc-800/90 hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/40 border border-zinc-700/60 text-zinc-300 cursor-pointer'
+                            : 'bg-zinc-800/70 text-zinc-400 border border-zinc-700/40'
+                        }`}
+                      >
+                        {cImg ? (
+                          <img src={cImg} alt="" className="w-3.5 h-3.5 rounded-full object-cover shrink-0" />
+                        ) : (
+                          <span className="w-3.5 h-3.5 rounded-full bg-zinc-700 text-[8px] flex items-center justify-center font-bold shrink-0">
+                            {cName.charAt(0)}
+                          </span>
+                        )}
+                        <span className="truncate">{cName}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Genres & Favorite Heart */}

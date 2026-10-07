@@ -44,6 +44,8 @@ export default function App() {
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [activeCharacter, setActiveCharacter] = useState('');
+  const [searchMode, setSearchMode] = useState('all'); // 'all' | 'title' | 'character'
   const [activeType, setActiveType] = useState('All');
   const [animeSubTab, setAnimeSubTab] = useState('All'); // 'All' | 'Series' | 'Movie'
   const [activeStatus, setActiveStatus] = useState('All');
@@ -138,6 +140,7 @@ export default function App() {
           sort: catalogSort,
           favorite: favoriteOnly,
           search: debouncedSearch,
+          character: activeCharacter || (searchMode === 'character' ? debouncedSearch : undefined),
           genre: activeGenre,
           animeFormat: activeAnimeFormat,
           page: currentPage,
@@ -158,12 +161,20 @@ export default function App() {
           : (activeSort === 'year_desc' ? 'release_desc' : activeSort);
 
         let res;
-        if (debouncedSearch) {
-          res = await searchGlobalMedia(debouncedSearch, {
+        const hasSearch = Boolean(debouncedSearch);
+        const hasCharFilter = Boolean(activeCharacter) || (searchMode === 'character' && hasSearch);
+        const characterTerm = activeCharacter || (searchMode === 'character' ? debouncedSearch : '');
+
+        if (hasSearch || hasCharFilter) {
+          const effectiveSearch = hasSearch ? debouncedSearch : characterTerm;
+          res = await searchGlobalMedia(effectiveSearch, {
             type: activeType,
             genre: activeGenre,
             sort: globalSort,
             animeFormat: activeAnimeFormat,
+            character: characterTerm,
+            searchMode: searchMode,
+            mainCharOnly: Boolean(activeCharacter || searchMode === 'character'),
             page: currentPage,
             limit: pageSize
           });
@@ -192,12 +203,12 @@ export default function App() {
         setLoading(false);
       }
     }
-  }, [currentView, globalTab, debouncedSearch, activeType, animeSubTab, activeStatus, activeGenre, activeSort, favoriteOnly, currentPage, pageSize]);
+  }, [currentView, globalTab, debouncedSearch, activeCharacter, searchMode, activeType, animeSubTab, activeStatus, activeGenre, activeSort, favoriteOnly, currentPage, pageSize]);
 
   // Reset page when search or filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [currentView, globalTab, debouncedSearch, activeType, animeSubTab, activeStatus, activeGenre, activeSort, favoriteOnly, pageSize]);
+  }, [currentView, globalTab, debouncedSearch, activeCharacter, searchMode, activeType, animeSubTab, activeStatus, activeGenre, activeSort, favoriteOnly, pageSize]);
 
   useEffect(() => {
     loadContent();
@@ -406,6 +417,25 @@ export default function App() {
     setTrailerModal({ isOpen: true, videoKey, title });
   };
 
+  // Character selection handlers
+  const handleSelectCharacter = useCallback((charName) => {
+    if (!charName) {
+      setActiveCharacter('');
+      return;
+    }
+    setActiveCharacter(charName);
+    if (currentView === 'stats') {
+      setCurrentView('global');
+    }
+    setCurrentPage(1);
+    showToast(`Filtering by lead character: "${charName}"`, 'info');
+  }, [currentView]);
+
+  const handleClearCharacter = useCallback(() => {
+    setActiveCharacter('');
+    setCurrentPage(1);
+  }, []);
+
   // Reset Filters
   const handleResetFilters = (targetView) => {
     const v = targetView || currentView;
@@ -416,6 +446,8 @@ export default function App() {
     setActiveSort(v === 'catalog' ? 'updated_desc' : 'popularity_desc');
     setFavoriteOnly(false);
     setSearchQuery('');
+    setActiveCharacter('');
+    setSearchMode('all');
     setCurrentPage(1);
   };
 
@@ -465,9 +497,9 @@ export default function App() {
 
   // Spotlight title for Global Hero (from uncataloged items when in Global on page 1)
   const spotlightMedia = useMemo(() => {
-    if (currentView !== 'global' || debouncedSearch || currentPage > 1) return null;
+    if (currentView !== 'global' || debouncedSearch || activeCharacter || currentPage > 1) return null;
     return uncatalogedMedia[0] || null;
-  }, [currentView, debouncedSearch, uncatalogedMedia, currentPage]);
+  }, [currentView, debouncedSearch, activeCharacter, uncatalogedMedia, currentPage]);
 
   // Display items (strictly adheres to view, activeType, animeSubTab, activeGenre, activeSort)
   const displayItems = useMemo(() => {
@@ -514,6 +546,25 @@ export default function App() {
         }
         if (m.synopsis && m.synopsis.toLowerCase().includes(gLower)) return true;
         return false;
+      });
+    }
+
+    // Client-side filter by lead character if active
+    if (activeCharacter) {
+      const charLower = activeCharacter.toLowerCase();
+      list = list.filter((m) => {
+        if (m.matchedCharacter && m.matchedCharacter.name?.toLowerCase().includes(charLower)) return true;
+        const inMain = Array.isArray(m.mainCharacters) && m.mainCharacters.some((c) =>
+          (typeof c === 'string' ? c : c.name || '').toLowerCase().includes(charLower)
+        );
+        if (inMain) return true;
+        const inCast = Array.isArray(m.cast) && m.cast.some((c) =>
+          (c.character || c.name || '').toLowerCase().includes(charLower)
+        );
+        if (inCast) return true;
+        if (m.title && m.title.toLowerCase().includes(charLower)) return true;
+        if (m.synopsis && m.synopsis.toLowerCase().includes(charLower)) return true;
+        return true;
       });
     }
 
@@ -565,7 +616,7 @@ export default function App() {
     }
 
     return sorted;
-  }, [currentView, uncatalogedMedia, catalogMediaList, catalogMap, spotlightMedia, debouncedSearch, currentPage, activeType, animeSubTab, activeGenre, activeStatus, favoriteOnly, activeSort]);
+  }, [currentView, uncatalogedMedia, catalogMediaList, catalogMap, spotlightMedia, debouncedSearch, activeCharacter, currentPage, activeType, animeSubTab, activeGenre, activeStatus, favoriteOnly, activeSort]);
 
   const handleViewChange = (nextView) => {
     setCurrentView(nextView);
@@ -594,6 +645,10 @@ export default function App() {
         onViewChange={handleViewChange}
         searchQuery={searchQuery}
         onSearchChange={handleSearchChange}
+        searchMode={searchMode}
+        onSearchModeChange={setSearchMode}
+        activeCharacter={activeCharacter}
+        onClearCharacter={handleClearCharacter}
         catalogCount={catalogItems.length}
         watchingCount={stats?.byStatus?.['Watching'] || 0}
         onOpenSettings={() => setSettingsOpen(true)}
@@ -628,6 +683,7 @@ export default function App() {
                 onWatchTrailer={handleWatchTrailer}
                 onAddOrUpdateCatalog={handleSaveCatalog}
                 onQuickSetStatus={handleQuickSetStatus}
+                onSelectCharacter={handleSelectCharacter}
               />
             )}
 
@@ -647,6 +703,8 @@ export default function App() {
               onGenreSelect={setActiveGenre}
               activeSort={activeSort}
               onSortSelect={setActiveSort}
+              activeCharacter={activeCharacter}
+              onCharacterSelect={handleSelectCharacter}
               favoriteOnly={favoriteOnly}
               onToggleFavorite={() => setFavoriteOnly(!favoriteOnly)}
               onResetFilters={handleResetFilters}
@@ -699,6 +757,7 @@ export default function App() {
                         onIncrementProgress={handleIncrementProgress}
                         onToggleFavorite={handleToggleFavorite}
                         onQuickSetStatus={handleQuickSetStatus}
+                        onSelectCharacter={handleSelectCharacter}
                       />
                     );
                   })}
@@ -723,22 +782,50 @@ export default function App() {
             ) : (
               /* Empty State */
               <div className="p-12 text-center rounded-3xl bg-zinc-900/30 border border-zinc-800/60 space-y-4 my-8">
-                <div className="w-16 h-16 rounded-full bg-zinc-900 flex items-center justify-center mx-auto text-zinc-500 border border-zinc-800">
-                  {currentView === 'catalog' ? '📚' : '🔍'}
+                <div className="w-16 h-16 rounded-full bg-zinc-900 flex items-center justify-center mx-auto text-zinc-500 border border-zinc-800 text-2xl">
+                  {activeCharacter ? '👤' : (currentView === 'catalog' ? '📚' : '🔍')}
                 </div>
                 <div className="space-y-1">
                   <h3 className="text-lg font-bold text-white">
-                    {currentView === 'catalog'
-                      ? 'No titles found in your personal catalog.'
-                      : 'No media found matching your search or filters.'}
+                    {activeCharacter
+                      ? `No titles found starring "${activeCharacter}"`
+                      : (currentView === 'catalog'
+                        ? 'No titles found in your personal catalog.'
+                        : 'No media found matching your search or filters.')}
                   </h3>
                   <p className="text-xs sm:text-sm text-zinc-400 max-w-md mx-auto">
-                    {currentView === 'catalog'
-                      ? 'Head over to Global discovery to explore trending anime, movies, and series, and add them to your watchlist!'
-                      : 'Try broadening your search query or switching category filters.'}
+                    {activeCharacter
+                      ? 'Try searching for another iconic lead character or clear this character filter.'
+                      : (currentView === 'catalog'
+                        ? 'Head over to Global discovery to explore trending anime, movies, and series, and add them to your watchlist!'
+                        : 'Try broadening your search query or switching category filters.')}
                   </p>
                 </div>
-                <div className="flex items-center justify-center gap-3">
+
+                {activeCharacter && (
+                  <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
+                    <span className="text-xs text-zinc-500">Try popular leads:</span>
+                    {['Luffy', 'Eren Yeager', 'Frieren', 'Walter White'].map((c) => (
+                      <button
+                        key={c}
+                        onClick={() => handleSelectCharacter(c)}
+                        className="px-2.5 py-1 rounded-full text-xs font-semibold bg-zinc-800/80 hover:bg-red-500/20 text-zinc-300 hover:text-red-400 border border-zinc-700/60 hover:border-red-500/40 transition-all"
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-center gap-3 pt-2">
+                  {activeCharacter && (
+                    <button
+                      onClick={handleClearCharacter}
+                      className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-colors shadow-lg shadow-red-950/60"
+                    >
+                      Clear Character Filter
+                    </button>
+                  )}
                   {currentPage > 1 && (
                     <button
                       onClick={() => setCurrentPage(1)}
@@ -790,6 +877,10 @@ export default function App() {
           onWatchTrailer={handleWatchTrailer}
           onSelectRelated={handleOpenDetail}
           onShowToast={showToast}
+          onSelectCharacter={(charName) => {
+            setSelectedMedia(null);
+            handleSelectCharacter(charName);
+          }}
         />
       )}
 

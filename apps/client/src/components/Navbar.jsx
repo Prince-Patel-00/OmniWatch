@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   Film,
   Compass,
@@ -8,7 +8,9 @@ import {
   X,
   Settings,
   Download,
-  Sparkles
+  Sparkles,
+  User,
+  SlidersHorizontal
 } from 'lucide-react';
 
 export default function Navbar({
@@ -16,12 +18,17 @@ export default function Navbar({
   onViewChange,
   searchQuery = '',
   onSearchChange,
+  searchMode = 'all', // 'all' | 'title' | 'character'
+  onSearchModeChange,
+  activeCharacter = '',
+  onClearCharacter,
   catalogCount = 0,
   watchingCount = 0,
   onOpenSettings,
   onOpenBackup
 }) {
   const searchInputRef = useRef(null);
+  const [showModeMenu, setShowModeMenu] = useState(false);
 
   // Keyboard shortcut: "/" to focus search bar, "Escape" to clear
   useEffect(() => {
@@ -31,14 +38,22 @@ export default function Navbar({
         searchInputRef.current?.focus();
       } else if (e.key === 'Escape' && document.activeElement === searchInputRef.current) {
         searchInputRef.current?.blur();
+        setShowModeMenu(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const getPlaceholder = () => {
+    if (activeCharacter) return `Filtering by "${activeCharacter}"...`;
+    if (searchMode === 'character') return "Search by main character (e.g. Luffy, Eren, Walter White)...";
+    if (searchMode === 'title') return "Search by title name... ('/' to focus)";
+    return "Search anime, movies, series or lead characters... ('/' to focus)";
+  };
+
   return (
-    <header className="sticky top-0 z-40 w-full backdrop-blur-2xl bg-zinc-950/85 border-b border-zinc-800/80 transition-colors">
+    <header className="sticky top-0 z-40 w-full backdrop-blur-2xl bg-zinc-950/90 border-b border-zinc-800/80 shadow-md shadow-black/40 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3 sm:gap-6">
         
         {/* Brand Logo & Workspaces */}
@@ -47,21 +62,21 @@ export default function Navbar({
             onClick={() => onViewChange('global')}
             className="flex items-center gap-3 cursor-pointer group select-none"
           >
-            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 via-rose-600 to-red-800 text-white shadow-lg shadow-red-950/50 group-hover:scale-105 group-hover:shadow-red-600/30 transition-all duration-300">
+            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 via-rose-600 to-red-800 text-white shadow-lg shadow-red-950/60 group-hover:scale-105 group-hover:shadow-red-600/40 transition-all duration-300">
               <Film className="w-5 h-5 text-white group-hover:rotate-6 transition-transform" />
-              <div className="absolute inset-0 rounded-xl ring-1 ring-white/20" />
+              <div className="absolute inset-0 rounded-xl ring-1 ring-white/25" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="text-xl font-black tracking-tight text-white">
-                  OMNI<span className="text-red-500">WATCH</span>
+                <span className="text-xl font-black tracking-tight text-white drop-shadow-sm">
+                  OMNI<span className="text-red-500 bg-gradient-to-r from-red-500 to-rose-400 bg-clip-text text-transparent">WATCH</span>
                 </span>
-                <span className="text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/30">
-                  Hub
+                <span className="text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-red-500/15 text-red-400 border border-red-500/30">
+                  2.0
                 </span>
               </div>
               <p className="text-[10px] text-zinc-400 font-medium hidden md:block">
-                Personal Entertainment & Watchlist
+                Entertainment & Character Explorer
               </p>
             </div>
           </div>
@@ -72,7 +87,7 @@ export default function Navbar({
               onClick={() => onViewChange('global')}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
                 currentView === 'global'
-                  ? 'bg-red-600 text-white shadow-md shadow-red-950/60 ring-1 ring-red-400/30'
+                  ? 'bg-red-600 text-white shadow-md shadow-red-950/60 ring-1 ring-red-400/40'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-900/80'
               }`}
             >
@@ -111,22 +126,105 @@ export default function Navbar({
           </nav>
         </div>
 
-        {/* Universal Search Bar */}
-        <div className="flex-1 max-w-md mx-2 sm:mx-4 relative">
-          <div className="relative flex items-center">
-            <Search className="absolute left-3 w-4 h-4 text-zinc-400 pointer-events-none" />
+        {/* Universal Search Bar with Mode Switcher */}
+        <div className="flex-1 max-w-lg mx-2 sm:mx-4 relative">
+          <div className={`relative flex items-center rounded-xl bg-zinc-900/90 border transition-all shadow-inner ${
+            searchMode === 'character' || activeCharacter
+              ? 'border-red-500/50 ring-1 ring-red-500/20'
+              : 'border-zinc-800 focus-within:border-red-500 focus-within:ring-1 focus-within:ring-red-500/50'
+          }`}>
+            
+            {/* Search Mode Trigger Button */}
+            {onSearchModeChange && (
+              <div className="relative pl-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowModeMenu(!showModeMenu)}
+                  title={`Current search mode: ${searchMode.toUpperCase()}. Click to change.`}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition-colors ${
+                    searchMode === 'character'
+                      ? 'bg-red-500/20 text-red-300 border border-red-500/40'
+                      : searchMode === 'title'
+                      ? 'bg-zinc-800 text-zinc-200 border border-zinc-700'
+                      : 'bg-zinc-800/80 text-zinc-400 hover:text-white border border-transparent'
+                  }`}
+                >
+                  {searchMode === 'character' ? (
+                    <User className="w-3.5 h-3.5 text-red-400" />
+                  ) : (
+                    <Search className="w-3.5 h-3.5 text-zinc-400" />
+                  )}
+                  <span className="capitalize hidden sm:inline">{searchMode}</span>
+                </button>
+
+                {/* Mode Selector Popover */}
+                {showModeMenu && (
+                  <div className="absolute top-full left-0 mt-1.5 w-36 bg-zinc-900 border border-zinc-700/80 rounded-xl shadow-2xl py-1 z-50 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                      Search Scope
+                    </div>
+                    {[
+                      { id: 'all', label: 'All Fields', icon: Sparkles },
+                      { id: 'character', label: 'Main Character', icon: User },
+                      { id: 'title', label: 'Title Only', icon: Film }
+                    ].map((mode) => {
+                      const Icon = mode.icon;
+                      const isSelected = searchMode === mode.id;
+                      return (
+                        <button
+                          key={mode.id}
+                          type="button"
+                          onClick={() => {
+                            onSearchModeChange(mode.id);
+                            setShowModeMenu(false);
+                          }}
+                          className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left font-semibold transition-colors ${
+                            isSelected
+                              ? 'bg-red-600/20 text-red-300'
+                              : 'text-zinc-300 hover:bg-zinc-800 hover:text-white'
+                          }`}
+                        >
+                          <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-red-400' : 'text-zinc-500'}`} />
+                          <span>{mode.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Active Character Filter Pill inside Search */}
+            {activeCharacter && (
+              <div className="flex items-center gap-1 ml-1.5 px-2 py-0.5 rounded-lg bg-red-950/80 border border-red-500/40 text-red-300 text-xs font-bold animate-in fade-in duration-200 shrink-0 max-w-[140px] truncate">
+                <User className="w-3 h-3 text-red-400 shrink-0" />
+                <span className="truncate">{activeCharacter}</span>
+                {onClearCharacter && (
+                  <button
+                    type="button"
+                    onClick={onClearCharacter}
+                    className="p-0.5 hover:text-white transition-colors"
+                    title="Clear character filter"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            )}
+
             <input
               ref={searchInputRef}
               type="text"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search anime, movies, series... ('/' to focus)"
-              className="w-full pl-9 pr-8 py-1.5 sm:py-2 text-xs sm:text-sm rounded-xl bg-zinc-900/90 hover:bg-zinc-900 text-zinc-100 placeholder-zinc-500 border border-zinc-800 focus:border-red-500 focus:ring-1 focus:ring-red-500/50 outline-none transition-all shadow-inner"
+              placeholder={getPlaceholder()}
+              className="w-full px-2.5 py-1.5 sm:py-2 text-xs sm:text-sm bg-transparent text-zinc-100 placeholder-zinc-500 outline-none transition-all"
             />
+
             {searchQuery && (
               <button
                 onClick={() => onSearchChange('')}
-                className="absolute right-2.5 p-1 rounded-full text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800"
+                className="mr-2 p-1 rounded-full text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
                 title="Clear search"
               >
                 <X className="w-3.5 h-3.5" />
@@ -140,7 +238,7 @@ export default function Navbar({
           <button
             onClick={onOpenBackup}
             title="Backup / Restore Catalog Data"
-            className="p-2 sm:px-3 sm:py-1.5 flex items-center gap-1.5 text-xs font-semibold rounded-xl bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 hover:border-zinc-700 transition-all"
+            className="p-2 sm:px-3 sm:py-1.5 flex items-center gap-1.5 text-xs font-semibold rounded-xl bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 hover:border-zinc-700 transition-all shadow-sm"
           >
             <Download className="w-4 h-4" />
             <span className="hidden lg:inline">Backup</span>
@@ -149,7 +247,7 @@ export default function Navbar({
           <button
             onClick={onOpenSettings}
             title="Provider Status & Settings"
-            className="p-2 sm:px-3 sm:py-1.5 flex items-center gap-1.5 text-xs font-semibold rounded-xl bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 hover:border-zinc-700 transition-all"
+            className="p-2 sm:px-3 sm:py-1.5 flex items-center gap-1.5 text-xs font-semibold rounded-xl bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 hover:border-zinc-700 transition-all shadow-sm"
           >
             <Settings className="w-4 h-4" />
             <span className="hidden sm:inline">Settings</span>

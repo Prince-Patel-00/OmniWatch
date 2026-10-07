@@ -9,7 +9,8 @@ import {
   Bookmark,
   CheckCircle2,
   ChevronRight,
-  Tv
+  Tv,
+  User
 } from 'lucide-react';
 import { formatTimeUntil } from '@omniwatch/shared';
 
@@ -19,7 +20,8 @@ export default function HeroSpotlight({
   onOpenDetail,
   onWatchTrailer,
   onAddOrUpdateCatalog,
-  onQuickSetStatus
+  onQuickSetStatus,
+  onSelectCharacter
 }) {
   if (!media) return null;
 
@@ -113,6 +115,53 @@ export default function HeroSpotlight({
               {media.synopsis}
             </p>
           )}
+
+          {/* Lead / Main Characters Showcase */}
+          {(() => {
+            const chars = media.mainCharacters || (media.cast || []).filter(c => c.role === 'MAIN');
+            const displayList = (chars && chars.length > 0 ? chars : (media.cast || [])).slice(0, 3);
+            if (!displayList || displayList.length === 0) return null;
+            return (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span className="text-xs font-bold text-zinc-400 flex items-center gap-1.5 uppercase tracking-wider text-[11px]">
+                  <User className="w-3.5 h-3.5 text-red-400" />
+                  Lead Characters:
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {displayList.map((c, i) => {
+                    const cName = c.name || c.character;
+                    const cImg = c.image || c.characterImage || c.actorImage;
+                    if (!cName) return null;
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onSelectCharacter) onSelectCharacter(cName);
+                        }}
+                        title={`Filter all titles featuring ${cName}`}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border transition-all ${
+                          onSelectCharacter 
+                            ? 'bg-zinc-900/85 hover:bg-red-950/60 text-zinc-200 hover:text-white border-zinc-700/70 hover:border-red-500/50 cursor-pointer shadow-sm hover:scale-105 active:scale-95'
+                            : 'bg-zinc-900/60 text-zinc-300 border-zinc-800'
+                        }`}
+                      >
+                        {cImg ? (
+                          <img src={cImg} alt="" className="w-4 h-4 rounded-full object-cover shrink-0 ring-1 ring-white/20" />
+                        ) : (
+                          <span className="w-4 h-4 rounded-full bg-zinc-800 flex items-center justify-center text-[9px] font-bold shrink-0">
+                            {cName.charAt(0)}
+                          </span>
+                        )}
+                        <span>{cName}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Action CTAs */}
           <div className="flex flex-wrap items-center gap-3 pt-2">

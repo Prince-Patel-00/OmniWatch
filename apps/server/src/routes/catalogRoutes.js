@@ -10,7 +10,8 @@ import {
   getCatalogStats,
   exportCatalogData,
   importCatalogData,
-  getCanonicalMedia
+  getCanonicalMedia,
+  getCatalogCharacters
 } from '../db.js';
 
 const router = express.Router();
@@ -18,7 +19,7 @@ const router = express.Router();
 // GET /api/catalog
 router.get('/', (req, res) => {
   try {
-    const { status, type, sort, favorite, search, genre, animeFormat, format, page, limit } = req.query;
+    const { status, type, sort, favorite, search, genre, animeFormat, format, character, page, limit } = req.query;
     const pageNum = page ? Math.max(1, parseInt(page, 10) || 1) : undefined;
     const limitNum = limit ? Math.max(1, Math.min(100, parseInt(limit, 10) || 24)) : undefined;
 
@@ -28,6 +29,7 @@ router.get('/', (req, res) => {
       sort: sort || 'updated_desc',
       favoriteOnly: favorite === 'true',
       search: search || '',
+      character: character || '',
       genre: genre || 'All',
       animeFormat: animeFormat || format || 'All',
       page: pageNum,
@@ -43,6 +45,18 @@ router.get('/', (req, res) => {
     });
   } catch (err) {
     console.error('Error fetching catalog:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/catalog/characters
+router.get('/characters', (req, res) => {
+  try {
+    const { limit = 25 } = req.query;
+    const characters = getCatalogCharacters({ limit: parseInt(limit, 10) || 25 });
+    res.json({ success: true, data: characters });
+  } catch (err) {
+    console.error('Error fetching catalog characters:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });

@@ -107,11 +107,12 @@ export class TMDBProvider extends BaseProvider {
     const genres = (item.genres || []).map(g => g.name);
 
     // Cast & Crew
-    const cast = (item.credits?.cast || []).slice(0, 10).map(c => ({
+    const cast = (item.credits?.cast || []).slice(0, 10).map((c, idx) => ({
       character: c.character,
       characterImage: c.profile_path ? `${TMDB_IMAGE_BASE}/w185${c.profile_path}` : null,
       actor: c.name,
-      actorImage: c.profile_path ? `${TMDB_IMAGE_BASE}/w185${c.profile_path}` : null
+      actorImage: c.profile_path ? `${TMDB_IMAGE_BASE}/w185${c.profile_path}` : null,
+      role: idx < 3 ? 'MAIN' : 'SUPPORTING'
     }));
 
     const directors = (item.credits?.crew || [])

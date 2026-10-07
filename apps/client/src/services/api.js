@@ -11,12 +11,13 @@ const BASE_SYSTEM = '/api/system';
 // Global Discovery API
 // -------------------------------------------------------------
 
-export async function getTrendingMedia(type = 'All', sort = 'popularity_desc', animeFormat = 'All', page = 1, limit = 24, genre = 'All') {
+export async function getTrendingMedia(type = 'All', sort = 'popularity_desc', animeFormat = 'All', page = 1, limit = 24, genre = 'All', character = '') {
   const q = new URLSearchParams();
   if (type && type !== 'All') q.set('type', type);
   if (sort) q.set('sort', sort);
   if (type === 'Anime' && animeFormat && animeFormat !== 'All') q.set('animeFormat', animeFormat);
   if (genre && genre !== 'All') q.set('genre', genre);
+  if (character && character.trim()) q.set('character', character.trim());
   if (page) q.set('page', page);
   if (limit) q.set('limit', limit);
   const res = await fetch(`${BASE_GLOBAL}/trending?${q.toString()}`);
@@ -38,7 +39,11 @@ export async function getUpcomingMedia(type = 'All', sort = 'release_desc', anim
 }
 
 export async function searchGlobalMedia(query, params = {}) {
-  const q = new URLSearchParams({ q: query });
+  const q = new URLSearchParams();
+  if (query) q.set('q', query);
+  if (params.character) q.set('character', params.character);
+  if (params.searchMode) q.set('searchMode', params.searchMode);
+  if (params.mainCharOnly !== undefined) q.set('mainCharOnly', String(params.mainCharOnly));
   if (params.type && params.type !== 'All') q.set('type', params.type);
   if (params.genre && params.genre !== 'All') q.set('genre', params.genre);
   if (params.year) q.set('year', params.year);
@@ -51,6 +56,16 @@ export async function searchGlobalMedia(query, params = {}) {
 
   const res = await fetch(`${BASE_GLOBAL}/search?${q.toString()}`);
   if (!res.ok) throw new Error(`Failed to search media: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getGlobalCharacters(params = {}) {
+  const q = new URLSearchParams();
+  if (params.type && params.type !== 'All') q.set('type', params.type);
+  if (params.search) q.set('search', params.search);
+  if (params.limit) q.set('limit', params.limit);
+  const res = await fetch(`${BASE_GLOBAL}/characters?${q.toString()}`);
+  if (!res.ok) throw new Error(`Failed to load characters`);
   return res.json();
 }
 
@@ -97,6 +112,7 @@ export async function getCatalog(params = {}) {
   if (params.sort) q.set('sort', params.sort);
   if (params.favorite) q.set('favorite', 'true');
   if (params.search) q.set('search', params.search);
+  if (params.character) q.set('character', params.character);
   if (params.genre && params.genre !== 'All') q.set('genre', params.genre);
   if (params.type === 'Anime' && params.animeFormat && params.animeFormat !== 'All') {
     q.set('animeFormat', params.animeFormat);
@@ -106,6 +122,14 @@ export async function getCatalog(params = {}) {
 
   const res = await fetch(`${BASE_CATALOG}?${q.toString()}`);
   if (!res.ok) throw new Error(`Failed to load personal catalog: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getCatalogCharacters(params = {}) {
+  const q = new URLSearchParams();
+  if (params.limit) q.set('limit', params.limit);
+  const res = await fetch(`${BASE_CATALOG}/characters?${q.toString()}`);
+  if (!res.ok) throw new Error(`Failed to load catalog characters`);
   return res.json();
 }
 

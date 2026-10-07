@@ -7,17 +7,33 @@ const router = express.Router();
 // GET /api/global/trending
 router.get('/trending', async (req, res) => {
   try {
-    const { type = 'All', sort = 'popularity_desc', animeFormat = 'All', format = 'All', page = 1, limit = 24, genre = 'All' } = req.query;
+    const { type = 'All', sort = 'popularity_desc', animeFormat = 'All', format = 'All', page = 1, limit = 24, genre = 'All', character = '' } = req.query;
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 24));
-    const items = await orchestrator.getTrending({
-      type,
-      sort,
-      animeFormat: animeFormat !== 'All' ? animeFormat : format,
-      page: pageNum,
-      limit: limitNum,
-      genre
-    });
+    
+    let items;
+    if (character && character.trim()) {
+      items = await orchestrator.search('', {
+        character,
+        type,
+        sort,
+        genre,
+        animeFormat: animeFormat !== 'All' ? animeFormat : format,
+        page: pageNum,
+        limit: limitNum,
+        mainCharOnly: true
+      });
+    } else {
+      items = await orchestrator.getTrending({
+        type,
+        sort,
+        animeFormat: animeFormat !== 'All' ? animeFormat : format,
+        page: pageNum,
+        limit: limitNum,
+        genre
+      });
+    }
+
     res.json({
       success: true,
       data: items,
@@ -63,7 +79,7 @@ router.get('/upcoming', async (req, res) => {
 // GET /api/global/search
 router.get('/search', async (req, res) => {
   try {
-    const { q = '', type = 'All', genre = 'All', year = null, sort = 'popularity_desc', animeFormat = 'All', format = 'All', page = 1, limit = 24 } = req.query;
+    const { q = '', type = 'All', genre = 'All', year = null, sort = 'popularity_desc', animeFormat = 'All', format = 'All', page = 1, limit = 24, character = '', searchMode = 'all', mainCharOnly = false } = req.query;
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 24));
     const items = await orchestrator.search(q, {
@@ -73,7 +89,10 @@ router.get('/search', async (req, res) => {
       sort,
       animeFormat: animeFormat !== 'All' ? animeFormat : format,
       page: pageNum,
-      limit: limitNum
+      limit: limitNum,
+      character,
+      searchMode,
+      mainCharOnly: mainCharOnly === 'true' || mainCharOnly === true
     });
     res.json({
       success: true,
@@ -85,6 +104,27 @@ router.get('/search', async (req, res) => {
     });
   } catch (err) {
     console.error('Error in search:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/global/characters (Discover leading and popular characters)
+router.get('/characters', (req, res) => {
+  try {
+    const { type = 'All', search = '', limit = 30 } = req.query;
+    const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 30));
+    const characters = orchestrator.getPopularCharacters({
+      type,
+      search,
+      limit: limitNum
+    });
+    res.json({
+      success: true,
+      data: characters,
+      count: characters.length
+    });
+  } catch (err) {
+    console.error('Error in characters endpoint:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });

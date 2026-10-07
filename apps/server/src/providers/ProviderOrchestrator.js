@@ -7,7 +7,8 @@ import {
   getCanonicalMedia,
   searchCachedMedia,
   getCachedTrending,
-  remapDuplicateCanonicalMedia
+  remapDuplicateCanonicalMedia,
+  getDistinctCharacters
 } from '../db.js';
 import { normalizeTitle } from '@omniwatch/shared';
 
@@ -237,6 +238,21 @@ function calculateRelevance(item, query) {
     score += (matchedTokens.length / tokens.length) * 4000;
   }
 
+  // 3.5. Main character and cast match
+  if (Array.isArray(item.cast)) {
+    for (const c of item.cast) {
+      const charName = (c.character || '').toLowerCase();
+      const cleanChar = cleanTitleForMatch(charName);
+      if (cleanChar === cleanQ || charName === qLower) {
+        score += (c.role === 'MAIN' || !c.role) ? 22000 : 10000;
+        break;
+      } else if (cleanChar.includes(cleanQ) || charName.includes(qLower)) {
+        score += (c.role === 'MAIN' || !c.role) ? 14000 : 6000;
+        break;
+      }
+    }
+  }
+
   // 4. Popularity tie-breaker (log-scaled: a title with 500,000 popularity outranks a 0.5 popularity obscure title)
   const pop = Number(item.popularityScore) || 0;
   score += Math.log10(pop + 1) * 2000;
@@ -265,71 +281,113 @@ export class ProviderOrchestrator {
   }
 
   /**
-   * Universal Search across active providers with entity deduplication and relevance ranking
+   * Universal Search across active providers with entity deduplication, character matching, and relevance ranking
    */
-  async search(query, { type = 'All', genre = 'All', year = null, sort = 'popularity_desc', animeFormat = 'All', format = 'All', page = 1, limit = 24 } = {}) {
+  async search(query, { type = 'All', genre = 'All', year = null, sort = 'popularity_desc', animeFormat = 'All', format = 'All', page = 1, limit = 24, character = null, searchMode = 'all', mainCharOnly = false } = {}) {
     const activeAnimeFormat = animeFormat !== 'All' ? animeFormat : (format !== 'All' ? format : 'All');
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, parseInt(limit, 10) || 24);
 
-    if (!query || !query.trim()) {
-      return this.getTrending({ type, sort, animeFormat: activeAnimeFormat, page: pageNum, limit: limitNum });
+    const targetChar = (character || (searchMode === 'character' ? query : '') || '').trim();
+
+    if (!query && !targetChar) {
+      return this.getTrending({ type, sort, animeFormat: activeAnimeFormat, page: pageNum, limit: limitNum, genre });
     }
 
-    const cleanQuery = query.trim();
+    const cleanQuery = (query || targetChar).trim();
 
-    // 1. Check local cache first for instant hits
-    const cachedHits = searchCachedMedia(cleanQuery, { type, genre, sort, limit: limitNum, page: pageNum, animeFormat: activeAnimeFormat });
+    // 1. Check local cache first for instant hits (with character support)
+    const cachedHits = searchCachedMedia(cleanQuery, {
+      type,
+      genre,
+      sort,
+      limit: limitNum,
+      page: pageNum,
+      animeFormat: activeAnimeFormat,
+      character: targetChar,
+      searchMode,
+      mainCharOnly
+    });
 
     // 2. Dispatch queries to relevant upstream providers concurrently
     const promises = [];
 
-    // Anime (All anime, including anime movies, queried here)
-    if (type === 'All' || type === 'Anime' || type === 'Movie') {
-      const aniFormat = type === 'Movie' ? 'Movie' : (type === 'Anime' && activeAnimeFormat !== 'All' ? activeAnimeFormat : null);
-      promises.push(
-        this.anilist.search(cleanQuery, { format: aniFormat, page: pageNum, perPage: limitNum, genre, sort })
-          .then(async (aniResults) => {
-            // If AniList returns very few results (< 3), also query Kitsu to ensure no anime is missed
-            if (Array.isArray(aniResults) && aniResults.length < 3) {
-              try {
-                const kitsuResults = await this.kitsu.search(cleanQuery, { format: aniFormat, page: pageNum, limit: limitNum });
-                return [...aniResults, ...(kitsuResults || [])];
-              } catch (e) {
-                return aniResults;
+    if (targetChar) {
+      // Dedicated Character Search
+      if (type === 'All' || type === 'Anime' || type === 'Movie') {
+        const aniFormat = type === 'Movie' ? 'Movie' : (type === 'Anime' && activeAnimeFormat !== 'All' ? activeAnimeFormat : null);
+        promises.push(
+          this.anilist.searchByCharacter(targetChar, {
+            format: aniFormat,
+            page: pageNum,
+            perPage: limitNum,
+            genre,
+            sort,
+            mainOnly: true
+          }).catch(err => {
+            console.warn('[ProviderOrchestrator] AniList character search failed:', err.message);
+            return [];
+          })
+        );
+      }
+    } else {
+      // General Universal Search across all sources
+      if (type === 'All' || type === 'Anime' || type === 'Movie') {
+        const aniFormat = type === 'Movie' ? 'Movie' : (type === 'Anime' && activeAnimeFormat !== 'All' ? activeAnimeFormat : null);
+        promises.push(
+          this.anilist.search(cleanQuery, { format: aniFormat, page: pageNum, perPage: limitNum, genre, sort })
+            .then(async (aniResults) => {
+              if (Array.isArray(aniResults) && aniResults.length < 3) {
+                try {
+                  const kitsuResults = await this.kitsu.search(cleanQuery, { format: aniFormat, page: pageNum, limit: limitNum });
+                  return [...aniResults, ...(kitsuResults || [])];
+                } catch (e) {
+                  return aniResults;
+                }
               }
-            }
-            return aniResults;
-          })
-          .catch(err => {
-            console.warn('AniList search failed, trying Kitsu:', err.message);
-            return this.kitsu.search(cleanQuery, { format: aniFormat, page: pageNum, limit: limitNum });
-          })
-      );
-    }
+              return aniResults;
+            })
+            .catch(err => {
+              console.warn('AniList search failed, trying Kitsu:', err.message);
+              return this.kitsu.search(cleanQuery, { format: aniFormat, page: pageNum, limit: limitNum });
+            })
+        );
 
-    // TV Series
-    if (type === 'All' || type === 'Series') {
-      promises.push(this.tvmaze.search(cleanQuery).then(tvResults => {
-        // Filter out TVMaze results that don't match any query token in title (removes noise)
-        const qTokens = cleanQuery.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(t => t.length >= 2);
-        if (qTokens.length === 0) return tvResults;
-        return (tvResults || []).filter(show => {
-          const sTitle = (show.title || '').toLowerCase();
-          return qTokens.some(tok => sTitle.includes(tok));
-        });
-      }).catch(err => {
-        console.warn('TVMaze search failed:', err.message);
-        return [];
-      }));
-    }
+        // Also query AniList character search in parallel so character searches yield rich hits
+        promises.push(
+          this.anilist.searchByCharacter(cleanQuery, {
+            format: aniFormat,
+            page: pageNum,
+            perPage: 6,
+            genre,
+            sort,
+            mainOnly: true
+          }).catch(() => [])
+        );
+      }
 
-    // TMDB (Movies and Series if API key present)
-    if (this.tmdb.isAvailable() && (type === 'All' || type === 'Movie' || type === 'Series')) {
-      promises.push(this.tmdb.search(cleanQuery, { type, page: pageNum, genre }).catch(err => {
-        console.warn('TMDB search failed:', err.message);
-        return [];
-      }));
+      // TV Series
+      if (type === 'All' || type === 'Series') {
+        promises.push(this.tvmaze.search(cleanQuery).then(tvResults => {
+          const qTokens = cleanQuery.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(t => t.length >= 2);
+          if (qTokens.length === 0) return tvResults;
+          return (tvResults || []).filter(show => {
+            const sTitle = (show.title || '').toLowerCase();
+            return qTokens.some(tok => sTitle.includes(tok));
+          });
+        }).catch(err => {
+          console.warn('TVMaze search failed:', err.message);
+          return [];
+        }));
+      }
+
+      // TMDB (Movies and Series if API key present)
+      if (this.tmdb.isAvailable() && (type === 'All' || type === 'Movie' || type === 'Series')) {
+        promises.push(this.tmdb.search(cleanQuery, { type, page: pageNum, genre }).catch(err => {
+          console.warn('TMDB search failed:', err.message);
+          return [];
+        }));
+      }
     }
 
     const settled = await Promise.allSettled(promises);
@@ -372,10 +430,29 @@ export class ProviderOrchestrator {
       filtered = filtered.filter(item => item.releaseYear === parseInt(year, 10));
     }
 
+    // Filter by character or main character if requested
+    if (targetChar) {
+      const charLower = targetChar.toLowerCase();
+      filtered = filtered.filter(item => {
+        const castList = item.cast || [];
+        return castList.some(c => {
+          const cName = (c.character || '').toLowerCase();
+          const match = cName.includes(charLower);
+          if (!match) return false;
+          if (mainCharOnly) return c.role === 'MAIN' || !c.role;
+          return true;
+        });
+      });
+    }
+
     // 6. Apply sorting with search relevance ranking
     filtered = this.applySorting(filtered, sort, cleanQuery);
 
     return filtered.slice(0, limitNum);
+  }
+
+  getPopularCharacters(options = {}) {
+    return getDistinctCharacters(options);
   }
 
   /**
