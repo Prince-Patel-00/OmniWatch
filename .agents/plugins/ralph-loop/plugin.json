@@ -1,0 +1,4 @@
+{
+  "name": "ralph-loop",
+  "description": "Ralph Loop autonomous iteration engine: disk-persisted state, fresh-context iterations, and empirical test-driven exit gates."
+}

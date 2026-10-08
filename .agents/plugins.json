@@ -1,0 +1,16 @@
+{
+  "entries": [
+    {
+      "path": ".agents/plugins/gsd-core"
+    },
+    {
+      "path": ".agents/plugins/roo-code"
+    },
+    {
+      "path": ".agents/plugins/ralph-loop"
+    },
+    {
+      "path": ".agents/plugins/coderabbit"
+    }
+  ]
+}
