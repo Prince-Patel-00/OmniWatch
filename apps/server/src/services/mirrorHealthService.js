@@ -8,6 +8,16 @@ const PERIODIC_CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000; // 12 hours
 let periodicCheckTimer = null;
 let isCheckRunning = false;
 
+function isSafePublicDomain(domain) {
+  if (!domain || typeof domain !== 'string') return false;
+  const d = domain.trim().toLowerCase();
+  if (d === 'localhost' || d.endsWith('.local') || d.endsWith('.internal') || d.endsWith('.localhost')) return false;
+  if (/^(127\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|169\.254\.|0\.)/.test(d)) return false;
+  if (d === '::1' || d.startsWith('fc') || d.startsWith('fd') || d.startsWith('fe80')) return false;
+  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i.test(d)) return false;
+  return true;
+}
+
 /**
  * Probes a specific domain to verify reachability and measure latency.
  */
@@ -17,6 +27,9 @@ export async function probeDomain(domain) {
   }
 
   const cleanDomain = domain.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  if (!isSafePublicDomain(cleanDomain)) {
+    return { isWorking: false, latencyMs: 0, status: 'Offline', error: 'Restricted domain or invalid format' };
+  }
   const url = `https://${cleanDomain}/`;
   const startTime = performance.now();
 

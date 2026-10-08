@@ -66,7 +66,11 @@ export function verifyToken(token) {
     .update(`${hB64}.${pB64}`)
     .digest('base64url');
 
-  if (signature !== expectedSig) return null;
+  const sigBuf = Buffer.from(signature);
+  const expBuf = Buffer.from(expectedSig);
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+    return null;
+  }
 
   try {
     const payload = JSON.parse(Buffer.from(pB64, 'base64url').toString('utf8'));

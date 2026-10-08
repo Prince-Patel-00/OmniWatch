@@ -1106,7 +1106,7 @@ export function getCatalogItems(opts = {}) {
   }
 
   const rows = db.prepare(sql).all(...params);
-  return rows.map(r => hydrateCatalogItem(db, r));
+  return rows.map(r => hydrateCatalogItem(db, r, targetUserId));
 }
 
 export function getCatalogItem(id, userId) {
@@ -1444,16 +1444,16 @@ export function batchSetSeasonProgress(catalogItemId, seasonNumber, episodeCount
           current_episode = MAX(current_episode, ?),
           last_watched_at = ?,
           updated_at = ?
-      WHERE id = ?
-    `).run(seasonNumber, newSeasonsCompleted, episodeCount, now, now, catalogItemId);
+      WHERE id = ? AND (user_id = ? OR user_id IS NULL)
+    `).run(seasonNumber, newSeasonsCompleted, episodeCount, now, now, catalogItemId, targetUserId);
   } else {
-    deleteStmt.run(catalogItemId, seasonNumber);
+    deleteStmt.run(catalogItemId, seasonNumber, targetUserId);
 
     const maxProg = db.prepare(`
       SELECT MAX(episode_number) as max_ep, MAX(season_number) as max_season 
       FROM catalog_episode_progress 
-      WHERE catalog_item_id = ? AND is_watched = 1
-    `).get(catalogItemId);
+      WHERE catalog_item_id = ? AND (user_id = ? OR user_id IS NULL) AND is_watched = 1
+    `).get(catalogItemId, targetUserId);
 
     let newSeasonsCompleted = existing?.seasons_completed || 0;
     if (newSeasonsCompleted >= seasonNumber) {
@@ -1466,11 +1466,11 @@ export function batchSetSeasonProgress(catalogItemId, seasonNumber, episodeCount
           seasons_completed = ?,
           current_episode = ?,
           updated_at = ?
-      WHERE id = ?
-    `).run(maxProg?.max_season || 1, newSeasonsCompleted, maxProg?.max_ep || 0, now, catalogItemId);
+      WHERE id = ? AND (user_id = ? OR user_id IS NULL)
+    `).run(maxProg?.max_season || 1, newSeasonsCompleted, maxProg?.max_ep || 0, now, catalogItemId, targetUserId);
   }
 
-  return getCatalogItem(catalogItemId);
+  return getCatalogItem(catalogItemId, targetUserId);
 }
 
 export function setSeasonsCompleted(catalogItemId, seasonsCompleted, opts = {}) {

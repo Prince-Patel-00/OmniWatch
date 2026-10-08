@@ -12,7 +12,8 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Email and password are required' });
     }
 
-    const user = await findUserByEmail(email);
+    const cleanEmail = String(email).trim().toLowerCase();
+    const user = await findUserByEmail(cleanEmail);
     if (!user) {
       return res.status(401).json({ success: false, error: 'Invalid email or password' });
     }
@@ -45,19 +46,20 @@ router.post('/register', async (req, res) => {
     if (!email || typeof email !== 'string' || !email.includes('@')) {
       return res.status(400).json({ success: false, error: 'Valid email address is required' });
     }
+    const cleanEmail = email.trim().toLowerCase();
     if (!password || typeof password !== 'string' || password.length < 6) {
       return res.status(400).json({ success: false, error: 'Password must be at least 6 characters' });
     }
 
-    const existing = await findUserByEmail(email);
+    const existing = await findUserByEmail(cleanEmail);
     if (existing) {
       return res.status(400).json({ success: false, error: 'An account with this email already exists' });
     }
 
     const newUser = await createUser({
-      email,
+      email: cleanEmail,
       password,
-      displayName: displayName || email.split('@')[0]
+      displayName: displayName || cleanEmail.split('@')[0]
     });
 
     const token = signToken({ userId: newUser.id, email: newUser.email });

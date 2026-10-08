@@ -708,12 +708,14 @@ export async function getCachedTrending({ type = 'All', animeFormat = 'All', lim
 
 export async function getCatalogItems(filters = {}) {
   const sql = getSql();
-  const { status = 'All', excludeStatus = '', type = 'All', sort = 'updated_desc', favoriteOnly = false, search = '', genre = 'All', animeFormat = 'All', page = 1, limit = 24 } = filters;
+  const { status = 'All', excludeStatus = '', type = 'All', sort = 'updated_desc', favoriteOnly = false, search = '', genre = 'All', animeFormat = 'All', page = 1, limit = 24, userId } = filters;
+  const targetUserId = userId || 'user_makisanis106';
 
   const rows = await sql`
     SELECT ci.*, cm.genres_json, cm.synopsis, cm.rating as global_rating, cm.total_episodes as canonical_total_episodes, cm.cast_json
     FROM catalog_items ci
     LEFT JOIN cached_media cm ON ci.canonical_id = cm.id
+    WHERE (ci.user_id = ${targetUserId} OR ci.user_id IS NULL)
     ORDER BY ci.updated_at DESC;
   `;
 
@@ -795,16 +797,21 @@ export async function getCatalogItems(filters = {}) {
   });
 }
 
-export async function getCatalogItem(id) {
+export async function getCatalogItem(id, userId) {
   if (!id) return null;
   const sql = getSql();
-  const rows = await sql`SELECT * FROM catalog_items WHERE id = ${id} OR canonical_id = ${id} LIMIT 1;`;
+  const targetUserId = userId || 'user_makisanis106';
+  const rows = await sql`
+    SELECT * FROM catalog_items 
+    WHERE (id = ${id} OR canonical_id = ${id}) AND (user_id = ${targetUserId} OR user_id IS NULL)
+    LIMIT 1;
+  `;
   if (!rows || rows.length === 0) return null;
 
   const item = rows[0];
   const progressRows = await sql`
     SELECT * FROM catalog_episode_progress 
-    WHERE catalog_item_id = ${item.id} AND is_watched = 1;
+    WHERE catalog_item_id = ${item.id} AND (user_id = ${targetUserId} OR user_id IS NULL) AND is_watched = 1;
   `;
 
   return {
@@ -840,12 +847,13 @@ export async function getCatalogItem(id) {
   };
 }
 
-export async function getCatalogItemByCanonicalId(canonicalId) {
-  return getCatalogItem(canonicalId);
+export async function getCatalogItemByCanonicalId(canonicalId, userId) {
+  return getCatalogItem(canonicalId, userId);
 }
 
-export async function upsertCatalogItem(item) {
+export async function upsertCatalogItem(item, userId) {
   const sql = getSql();
+  const targetUserId = userId || item.userId || 'user_makisanis106';
   const id = item.id || `cat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const now = new Date().toISOString();
 
@@ -855,12 +863,12 @@ export async function upsertCatalogItem(item) {
 
   await sql`
     INSERT INTO catalog_items (
-      id, canonical_id, media_type, format, title, poster_url, backdrop_url,
+      id, canonical_id, user_id, media_type, format, title, poster_url, backdrop_url,
       release_year, user_status, is_favorite, is_rewatching, user_rating,
       current_season, seasons_completed, total_seasons, current_episode, total_episodes, notes, tags_json,
       started_at, completed_at, last_watched_at, updated_at
     ) VALUES (
-      ${id}, ${item.canonicalId || id}, ${item.mediaType}, ${item.format || 'Series'},
+      ${id}, ${item.canonicalId || id}, ${targetUserId}, ${item.mediaType}, ${item.format || 'Series'},
       ${item.title}, ${item.posterUrl || null}, ${item.backdropUrl || null},
       ${item.releaseYear || null}, ${item.userStatus || 'Want to Watch'},
       ${item.isFavorite ? 1 : 0}, ${item.isRewatching ? 1 : 0}, ${item.userRating || null},
@@ -870,6 +878,7 @@ export async function upsertCatalogItem(item) {
       ${now}
     )
     ON CONFLICT (id) DO UPDATE SET
+      user_id = COALESCE(EXCLUDED.user_id, catalog_items.user_id),
       user_status = EXCLUDED.user_status,
       is_favorite = EXCLUDED.is_favorite,
       is_rewatching = EXCLUDED.is_rewatching,
@@ -886,13 +895,14 @@ export async function upsertCatalogItem(item) {
       updated_at = EXCLUDED.updated_at;
   `;
 
-  return getCatalogItem(id);
+  return getCatalogItem(id, targetUserId);
 }
 
 export async function setSeasonsCompleted(catalogItemId, seasonsCompleted, opts = {}) {
   const sql = getSql();
   const now = new Date().toISOString();
-  const existing = await getCatalogItem(catalogItemId);
+  const targetUserId = opts.userId || 'user_makisanis106';
+  const existing = await getCatalogItem(catalogItemId, targetUserId);
   if (!existing) return null;
 
   const count = Math.max(0, parseInt(seasonsCompleted, 10) || 0);
@@ -911,27 +921,30 @@ export async function setSeasonsCompleted(catalogItemId, seasonsCompleted, opts 
         completed_at = ${completedAt},
         last_watched_at = ${now},
         updated_at = ${now}
-    WHERE id = ${catalogItemId};
+    WHERE id = ${catalogItemId} AND (user_id = ${targetUserId} OR user_id IS NULL);
   `;
 
-  return getCatalogItem(catalogItemId);
+  return getCatalogItem(catalogItemId, targetUserId);
 }
 
-export async function deleteCatalogItem(id) {
+export async function deleteCatalogItem(id, userId) {
   const sql = getSql();
-  await sql`DELETE FROM catalog_items WHERE id = ${id} OR canonical_id = ${id};`;
+  const targetUserId = userId || 'user_makisanis106';
+  await sql`DELETE FROM catalog_items WHERE (id = ${id} OR canonical_id = ${id}) AND (user_id = ${targetUserId} OR user_id IS NULL);`;
   return { success: true };
 }
 
-export async function toggleEpisodeProgress(catalogItemId, seasonNumber, episodeNumber, isWatched) {
+export async function toggleEpisodeProgress(catalogItemId, seasonNumber, episodeNumber, isWatched, userId) {
   const sql = getSql();
   const now = new Date().toISOString();
+  const targetUserId = userId || 'user_makisanis106';
 
   if (isWatched) {
     await sql`
-      INSERT INTO catalog_episode_progress (catalog_item_id, season_number, episode_number, is_watched, watched_at)
-      VALUES (${catalogItemId}, ${seasonNumber}, ${episodeNumber}, 1, ${now})
+      INSERT INTO catalog_episode_progress (user_id, catalog_item_id, season_number, episode_number, is_watched, watched_at)
+      VALUES (${targetUserId}, ${catalogItemId}, ${seasonNumber}, ${episodeNumber}, 1, ${now})
       ON CONFLICT (catalog_item_id, season_number, episode_number) DO UPDATE SET
+        user_id = COALESCE(catalog_episode_progress.user_id, ${targetUserId}),
         is_watched = 1,
         watched_at = EXCLUDED.watched_at;
     `;
@@ -942,34 +955,37 @@ export async function toggleEpisodeProgress(catalogItemId, seasonNumber, episode
           current_episode = GREATEST(COALESCE(current_episode, 0), ${episodeNumber}),
           last_watched_at = ${now},
           updated_at = ${now}
-      WHERE id = ${catalogItemId};
+      WHERE id = ${catalogItemId} AND (user_id = ${targetUserId} OR user_id IS NULL);
     `;
   } else {
     await sql`
       DELETE FROM catalog_episode_progress
-      WHERE catalog_item_id = ${catalogItemId} AND season_number = ${seasonNumber} AND episode_number = ${episodeNumber};
+      WHERE catalog_item_id = ${catalogItemId} AND season_number = ${seasonNumber} AND episode_number = ${episodeNumber}
+        AND (user_id = ${targetUserId} OR user_id IS NULL);
     `;
 
     await sql`
       UPDATE catalog_items
       SET last_watched_at = ${now}, updated_at = ${now}
-      WHERE id = ${catalogItemId};
+      WHERE id = ${catalogItemId} AND (user_id = ${targetUserId} OR user_id IS NULL);
     `;
   }
 
-  return getCatalogItem(catalogItemId);
+  return getCatalogItem(catalogItemId, targetUserId);
 }
 
-export async function batchSetSeasonProgress(catalogItemId, seasonNumber, episodes, isWatched) {
+export async function batchSetSeasonProgress(catalogItemId, seasonNumber, episodes, isWatched, userId) {
   const sql = getSql();
   const now = new Date().toISOString();
+  const targetUserId = userId || 'user_makisanis106';
 
   if (isWatched) {
     for (const ep of episodes) {
       await sql`
-        INSERT INTO catalog_episode_progress (catalog_item_id, season_number, episode_number, is_watched, watched_at)
-        VALUES (${catalogItemId}, ${seasonNumber}, ${ep}, 1, ${now})
+        INSERT INTO catalog_episode_progress (user_id, catalog_item_id, season_number, episode_number, is_watched, watched_at)
+        VALUES (${targetUserId}, ${catalogItemId}, ${seasonNumber}, ${ep}, 1, ${now})
         ON CONFLICT (catalog_item_id, season_number, episode_number) DO UPDATE SET
+          user_id = COALESCE(catalog_episode_progress.user_id, ${targetUserId}),
           is_watched = 1,
           watched_at = EXCLUDED.watched_at;
       `;
@@ -978,7 +994,8 @@ export async function batchSetSeasonProgress(catalogItemId, seasonNumber, episod
     for (const ep of episodes) {
       await sql`
         DELETE FROM catalog_episode_progress
-        WHERE catalog_item_id = ${catalogItemId} AND season_number = ${seasonNumber} AND episode_number = ${ep};
+        WHERE catalog_item_id = ${catalogItemId} AND season_number = ${seasonNumber} AND episode_number = ${ep}
+          AND (user_id = ${targetUserId} OR user_id IS NULL);
       `;
     }
   }
@@ -988,22 +1005,20 @@ export async function batchSetSeasonProgress(catalogItemId, seasonNumber, episod
 
 export async function getCatalogStats(userId) {
   const sql = getSql();
-  const rows = userId
-    ? await sql`
-        SELECT ci.id, ci.title, ci.user_status, ci.media_type, ci.user_rating, ci.is_favorite,
-               ci.canonical_id, cm.genres_json, cm.poster_url, cm.rating as global_rating
-        FROM catalog_items ci
-        LEFT JOIN cached_media cm ON ci.canonical_id = cm.id OR ci.id = cm.id
-        WHERE ci.user_id = ${userId} OR ci.user_id IS NULL;
-      `
-    : await sql`
-        SELECT ci.id, ci.title, ci.user_status, ci.media_type, ci.user_rating, ci.is_favorite,
-               ci.canonical_id, cm.genres_json, cm.poster_url, cm.rating as global_rating
-        FROM catalog_items ci
-        LEFT JOIN cached_media cm ON ci.canonical_id = cm.id OR ci.id = cm.id;
-      `;
+  const targetUserId = userId || 'user_makisanis106';
+  const rows = await sql`
+    SELECT ci.id, ci.title, ci.user_status, ci.media_type, ci.user_rating, ci.is_favorite,
+           ci.canonical_id, cm.genres_json, cm.poster_url, cm.rating as global_rating
+    FROM catalog_items ci
+    LEFT JOIN cached_media cm ON ci.canonical_id = cm.id OR ci.id = cm.id
+    WHERE ci.user_id = ${targetUserId} OR ci.user_id IS NULL;
+  `;
 
-  const epRows = await sql`SELECT COUNT(*)::int as cnt FROM catalog_episode_progress WHERE is_watched = 1;`;
+  const epRows = await sql`
+    SELECT COUNT(*)::int as cnt 
+    FROM catalog_episode_progress 
+    WHERE is_watched = 1 AND (user_id = ${targetUserId} OR user_id IS NULL);
+  `;
 
   const totalTitles = rows.length;
   const statusCounts = {};

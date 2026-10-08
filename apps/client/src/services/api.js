@@ -63,7 +63,14 @@ export async function authFetch(url, options = {}) {
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  return fetch(url, { ...options, headers });
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 401 && token) {
+    clearAuth();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('omniwatch:session_expired'));
+    }
+  }
+  return res;
 }
 
 export async function login(email, password) {
