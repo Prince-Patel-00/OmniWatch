@@ -817,6 +817,13 @@ export function searchCachedMedia(query, opts = {}) {
     params.push(`%"${genre}"%`);
   }
 
+  const excludeList = (typeof opts.excludeIds === 'string' ? opts.excludeIds.split(',') : Array.from(opts.excludeIds || [])).map(s => String(s).trim()).filter(Boolean);
+  if (excludeList.length > 0) {
+    const placeholders = excludeList.map(() => '?').join(',');
+    sql += ` AND id NOT IN (${placeholders})`;
+    params.push(...excludeList);
+  }
+
   switch (sort) {
     case 'rating_desc':
       sql += ' ORDER BY rating DESC NULLS LAST, popularity_score DESC';
@@ -831,13 +838,6 @@ export function searchCachedMedia(query, opts = {}) {
     default:
       sql += ' ORDER BY popularity_score DESC, rating DESC';
       break;
-  }
-
-  const excludeList = (typeof opts.excludeIds === 'string' ? opts.excludeIds.split(',') : Array.from(opts.excludeIds || [])).map(s => String(s).trim()).filter(Boolean);
-  if (excludeList.length > 0) {
-    const placeholders = excludeList.map(() => '?').join(',');
-    sql += ` AND id NOT IN (${placeholders})`;
-    params.push(...excludeList);
   }
 
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -919,6 +919,13 @@ export function getCachedTrending(type = 'All', limit = 24, opts = {}) {
     params.push(`%"${genre.toLowerCase()}"%`);
   }
 
+  const excludeList = (typeof opts.excludeIds === 'string' ? opts.excludeIds.split(',') : Array.from(opts.excludeIds || [])).map(s => String(s).trim()).filter(Boolean);
+  if (excludeList.length > 0) {
+    const placeholders = excludeList.map(() => '?').join(',');
+    sql += ` AND id NOT IN (${placeholders})`;
+    params.push(...excludeList);
+  }
+
   switch (sort) {
     case 'rating_desc':
       sql += ' ORDER BY rating DESC NULLS LAST, popularity_score DESC, id ASC';
@@ -934,13 +941,6 @@ export function getCachedTrending(type = 'All', limit = 24, opts = {}) {
     default:
       sql += ' ORDER BY popularity_score DESC, rating DESC, id ASC';
       break;
-  }
-
-  const excludeList = (typeof opts.excludeIds === 'string' ? opts.excludeIds.split(',') : Array.from(opts.excludeIds || [])).map(s => String(s).trim()).filter(Boolean);
-  if (excludeList.length > 0) {
-    const placeholders = excludeList.map(() => '?').join(',');
-    sql += ` AND id NOT IN (${placeholders})`;
-    params.push(...excludeList);
   }
 
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -1009,6 +1009,13 @@ export function getCatalogItems(opts = {}) {
     params.push(gPattern, gPattern, gPattern);
   }
 
+  const excludeList = (typeof opts.excludeIds === 'string' ? opts.excludeIds.split(',') : Array.from(opts.excludeIds || [])).map(s => String(s).trim()).filter(Boolean);
+  if (excludeList.length > 0) {
+    const placeholders = excludeList.map(() => '?').join(',');
+    sql += ` AND id NOT IN (${placeholders}) AND (canonical_id IS NULL OR canonical_id NOT IN (${placeholders}))`;
+    params.push(...excludeList, ...excludeList);
+  }
+
   switch (sort) {
     case 'rating_desc':
       sql += ' ORDER BY user_rating DESC NULLS LAST, updated_at DESC, id ASC';
@@ -1030,13 +1037,6 @@ export function getCatalogItems(opts = {}) {
     default:
       sql += ' ORDER BY updated_at DESC, id ASC';
       break;
-  }
-
-  const excludeList = (typeof opts.excludeIds === 'string' ? opts.excludeIds.split(',') : Array.from(opts.excludeIds || [])).map(s => String(s).trim()).filter(Boolean);
-  if (excludeList.length > 0) {
-    const placeholders = excludeList.map(() => '?').join(',');
-    sql += ` AND id NOT IN (${placeholders}) AND (canonical_id IS NULL OR canonical_id NOT IN (${placeholders}))`;
-    params.push(...excludeList, ...excludeList);
   }
 
   if (page !== undefined && limit !== undefined) {
