@@ -708,7 +708,7 @@ export async function getCachedTrending({ type = 'All', animeFormat = 'All', lim
 
 export async function getCatalogItems(filters = {}) {
   const sql = getSql();
-  const { status = 'All', type = 'All', sort = 'updated_desc', favoriteOnly = false, search = '', genre = 'All', animeFormat = 'All', page = 1, limit = 24 } = filters;
+  const { status = 'All', excludeStatus = '', type = 'All', sort = 'updated_desc', favoriteOnly = false, search = '', genre = 'All', animeFormat = 'All', page = 1, limit = 24 } = filters;
 
   const rows = await sql`
     SELECT ci.*, cm.genres_json, cm.synopsis, cm.rating as global_rating, cm.total_episodes as canonical_total_episodes, cm.cast_json
@@ -721,6 +721,9 @@ export async function getCatalogItems(filters = {}) {
 
   if (status !== 'All') {
     filtered = filtered.filter(i => i.user_status === status);
+  }
+  if (excludeStatus && excludeStatus.trim()) {
+    filtered = filtered.filter(i => i.user_status !== excludeStatus.trim());
   }
   if (type !== 'All') {
     filtered = filtered.filter(i => i.media_type === type);

@@ -1,8 +1,9 @@
 import React from 'react';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
 /**
- * Modern Dark-Themed Pagination Component for OmniWatch
- * Handles multi-page browsing across Global discovery & My Catalog
+ * Modern Dark-Themed Pagination Component for OmniWatch 2.5
+ * Features: First, Prev, Dynamic Page Numbers with Ellipses, Next, and Last controls.
  */
 export default function Pagination({
   currentPage = 1,
@@ -14,9 +15,10 @@ export default function Pagination({
   isLoading = false
 }) {
   const totalPages = totalCount ? Math.max(1, Math.ceil(totalCount / pageSize)) : null;
+  const canGoPrev = currentPage > 1;
   const canGoNext = totalPages ? currentPage < totalPages : hasMore;
 
-  // Generate intelligent page numbers to show
+  // Generate smart page numbers around current page
   const getPageNumbers = () => {
     const pages = [];
     const maxButtons = 5;
@@ -44,33 +46,47 @@ export default function Pagination({
 
   const handlePageClick = (page) => {
     if (page === currentPage || page < 1 || isLoading) return;
+    if (totalPages && page > totalPages) return;
     onPageChange(page);
-    // Smooth scroll to top of media container
-    window.scrollTo({ top: 300, behavior: 'smooth' });
+    window.scrollTo({ top: 250, behavior: 'smooth' });
   };
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-8 px-4 sm:px-6 my-6 rounded-2xl bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-md">
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-6 px-4 sm:px-6 my-6 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md shadow-xl">
       
-      {/* Page Info & Size Selector */}
-      <div className="flex items-center gap-3 text-xs sm:text-sm text-zinc-400 order-2 sm:order-1">
-        <span className="flex items-center gap-1.5 font-medium">
-          <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-          Page <strong className="text-white font-bold px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700/60">{currentPage}</strong>
+      {/* Left: Page & Total Items Info */}
+      <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm text-zinc-400 order-2 sm:order-1">
+        <span className="flex items-center gap-2 font-medium">
+          <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-sm shadow-red-500/50" />
+          <span>Page</span>
+          <strong className="text-white font-black px-2 py-0.5 rounded-lg bg-zinc-800 border border-zinc-700/80 shadow-inner">
+            {currentPage}
+          </strong>
+          {totalPages && (
+            <span>
+              of <strong className="text-zinc-200">{totalPages}</strong>
+            </span>
+          )}
         </span>
+
+        {totalCount !== null && (
+          <span className="hidden md:inline text-xs text-zinc-500 pl-2 border-l border-zinc-800">
+            ({totalCount} total items)
+          </span>
+        )}
 
         {onPageSizeChange && (
           <div className="flex items-center gap-1.5 pl-3 border-l border-zinc-800 text-xs text-zinc-400">
-            <span>Titles per page:</span>
+            <span>Per page:</span>
             {[24, 48].map((size) => (
               <button
                 key={size}
                 type="button"
                 onClick={() => onPageSizeChange(size)}
-                className={`px-2 py-0.5 rounded text-xs font-semibold transition-all ${
+                className={`px-2 py-0.5 rounded-lg text-xs font-bold transition-all ${
                   pageSize === size
-                    ? 'bg-zinc-700 text-white font-bold'
-                    : 'bg-zinc-850 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+                    ? 'bg-red-600 text-white shadow-sm'
+                    : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white'
                 }`}
               >
                 {size}
@@ -80,34 +96,34 @@ export default function Pagination({
         )}
       </div>
 
-      {/* Pagination Controls */}
-      <div className="flex items-center gap-1.5 order-1 sm:order-2">
+      {/* Right: First, Prev, Numbers, Next, Last Controls */}
+      <div className="flex items-center gap-1.5 order-1 sm:order-2 flex-wrap justify-center">
+        {/* First Page Button */}
+        <button
+          type="button"
+          onClick={() => handlePageClick(1)}
+          disabled={!canGoPrev || isLoading}
+          title="First Page"
+          className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-xl text-xs font-bold transition-all bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 text-zinc-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none active:scale-95 shadow-sm"
+        >
+          <ChevronsLeft className="w-4 h-4" />
+        </button>
+
         {/* Previous Button */}
         <button
           type="button"
           onClick={() => handlePageClick(currentPage - 1)}
-          disabled={currentPage <= 1 || isLoading}
-          aria-label="Previous Page"
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 text-zinc-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-zinc-900 active:scale-95"
+          disabled={!canGoPrev || isLoading}
+          title="Previous Page"
+          className="flex items-center gap-1 px-2.5 sm:px-3 h-8 sm:h-9 rounded-xl text-xs font-bold transition-all bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 text-zinc-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none active:scale-95 shadow-sm"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
+          <ChevronLeft className="w-4 h-4" />
           <span className="hidden xs:inline">Prev</span>
         </button>
 
-        {/* First Page Link if scrolled far */}
-        {currentPage > 3 && (
-          <>
-            <button
-              type="button"
-              onClick={() => handlePageClick(1)}
-              className="w-9 h-9 flex items-center justify-center rounded-xl text-xs sm:text-sm font-semibold transition-all bg-zinc-900/80 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 text-zinc-300 hover:text-white active:scale-95"
-            >
-              1
-            </button>
-            {currentPage > 4 && <span className="px-1 text-zinc-600 text-xs">•••</span>}
-          </>
+        {/* Ellipsis before page window */}
+        {pageNumbers.length > 0 && pageNumbers[0] > 1 && (
+          <span className="px-1 text-zinc-600 text-xs font-bold select-none">•••</span>
         )}
 
         {/* Numbered Page Buttons */}
@@ -119,10 +135,10 @@ export default function Pagination({
               type="button"
               onClick={() => handlePageClick(page)}
               disabled={isLoading}
-              className={`w-9 h-9 flex items-center justify-center rounded-xl text-xs sm:text-sm font-bold transition-all ${
+              className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-xl text-xs sm:text-sm font-black transition-all ${
                 isActive
-                  ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-lg shadow-red-950/60 scale-105 border border-red-500/40'
-                  : 'bg-zinc-900/80 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 text-zinc-300 hover:text-white active:scale-95'
+                  ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-lg shadow-red-950/60 scale-105 border border-red-400/50 ring-1 ring-red-400/30'
+                  : 'bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 text-zinc-300 hover:text-white active:scale-95'
               }`}
             >
               {page}
@@ -130,9 +146,12 @@ export default function Pagination({
           );
         })}
 
-        {/* More pages indicator */}
-        {canGoNext && (
-          <span className="px-1 text-zinc-600 text-xs">•••</span>
+        {/* Ellipsis after page window */}
+        {totalPages && pageNumbers.length > 0 && pageNumbers[pageNumbers.length - 1] < totalPages && (
+          <span className="px-1 text-zinc-600 text-xs font-bold select-none">•••</span>
+        )}
+        {!totalPages && canGoNext && (
+          <span className="px-1 text-zinc-600 text-xs font-bold select-none">•••</span>
         )}
 
         {/* Next Button */}
@@ -140,14 +159,25 @@ export default function Pagination({
           type="button"
           onClick={() => handlePageClick(currentPage + 1)}
           disabled={!canGoNext || isLoading}
-          aria-label="Next Page"
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 text-zinc-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-zinc-900 active:scale-95"
+          title="Next Page"
+          className="flex items-center gap-1 px-2.5 sm:px-3 h-8 sm:h-9 rounded-xl text-xs font-bold transition-all bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 text-zinc-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none active:scale-95 shadow-sm"
         >
           <span className="hidden xs:inline">Next</span>
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
+          <ChevronRight className="w-4 h-4" />
         </button>
+
+        {/* Last Page Button */}
+        {totalPages && (
+          <button
+            type="button"
+            onClick={() => handlePageClick(totalPages)}
+            disabled={currentPage >= totalPages || isLoading}
+            title={`Last Page (${totalPages})`}
+            className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-xl text-xs font-bold transition-all bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 text-zinc-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none active:scale-95 shadow-sm"
+          >
+            <ChevronsRight className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
     </div>

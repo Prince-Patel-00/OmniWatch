@@ -440,12 +440,22 @@ export default function MediaDetailModal({
     return true;
   });
 
-  // Prioritize active & working mirrors at the top
-  const sortedSources = [...filteredSources].sort((a, b) => {
-    const aWork = a.isWorking !== false ? 1 : 0;
-    const bWork = b.isWorking !== false ? 1 : 0;
-    return bWork - aWork;
-  });
+  // Prioritize active & working mirrors at the top and deduplicate against official streaming providers
+  const officialProviderNames = new Set(
+    (availableProviders || []).map((p) => (p.name || '').toLowerCase().replace(/[^a-z0-9]/g, ''))
+  );
+
+  const sortedSources = [...filteredSources]
+    .filter((s) => {
+      // Deduplicate: If official streaming platform is active, suppress duplicate mirror block
+      const nameNorm = (s.sourceName || s.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      return !officialProviderNames.has(nameNorm);
+    })
+    .sort((a, b) => {
+      const aWork = a.isWorking !== false ? 1 : 0;
+      const bWork = b.isWorking !== false ? 1 : 0;
+      return bWork - aWork;
+    });
 
   const primaryTrailer = media.trailers?.find(t => YOUTUBE_KEY_REGEX.test(t.videoKey)) || media.trailers?.[0];
 
@@ -844,21 +854,37 @@ export default function MediaDetailModal({
             </div>
           )}
 
-          {/* Official Streaming Availability Banner */}
+          {/* Official Streaming Availability Banner (Consolidated & Non-duplicated) */}
           {availableProviders.length > 0 && (
-            <div className="px-4 sm:px-6 pt-4 pb-1 bg-zinc-950/40">
-              <div className="flex items-center gap-2 mb-2 text-xs font-bold text-red-500 uppercase tracking-wider">
-                <Radio className="w-3.5 h-3.5 animate-pulse text-red-500" />
-                <span>((•)) Official Streaming Availability</span>
+            <div className="px-4 sm:px-6 pt-3 pb-2 bg-zinc-950/70 border-b border-zinc-800/80">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2 text-xs font-black text-red-500 uppercase tracking-wider">
+                  <Radio className="w-3.5 h-3.5 animate-pulse text-red-500" />
+                  <span>Official Streaming Availability</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-zinc-400" />
+                  <select
+                    value={selectedRegion}
+                    onChange={(e) => setSelectedRegion(e.target.value)}
+                    className="bg-zinc-900 border border-zinc-800 text-zinc-300 text-[11px] font-bold rounded-lg px-2 py-0.5 outline-none focus:border-red-500 cursor-pointer"
+                  >
+                    {POPULAR_REGIONS.map((r) => (
+                      <option key={r.code} value={r.code} className="bg-zinc-950 text-white">
+                        {r.label} ({r.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="flex items-center gap-3 overflow-x-auto pb-1 scrollbar-none">
-                {availableProviders.slice(0, 8).map((wp, idx) => (
+                {availableProviders.map((wp, idx) => (
                   <a
                     key={idx}
                     href={wp.webUrl || '#'}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 transition-all shrink-0 group shadow-sm"
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 transition-all shrink-0 group shadow-sm"
                   >
                     {wp.logoUrl ? (
                       <img src={wp.logoUrl} alt={wp.name} className="w-5 h-5 rounded-md object-contain bg-zinc-950 p-0.5 border border-zinc-800" />
@@ -872,7 +898,7 @@ export default function MediaDetailModal({
                         {wp.name}
                       </p>
                       <span className="text-[10px] text-zinc-400">
-                        {wp.region || 'Global'}
+                        {wp.type || wp.region || 'Stream'}
                       </span>
                     </div>
                   </a>
@@ -891,7 +917,7 @@ export default function MediaDetailModal({
                     : 'text-zinc-400 border-transparent hover:text-zinc-200'
                   }`}
               >
-                Streaming & Download Mirrors ({sourcesList.length})
+                Streaming & Download Mirrors ({sortedSources.length})
               </button>
 
               <button
@@ -914,15 +940,18 @@ export default function MediaDetailModal({
                 Overview & Cast
               </button>
 
-              <button
-                onClick={() => setActiveTab('watch')}
-                className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap border-b-2 ${activeTab === 'watch'
-                    ? 'text-white border-red-500'
-                    : 'text-zinc-400 border-transparent hover:text-zinc-200'
-                  }`}
-              >
-                Where to Watch ({availableProviders.length})
-              </button>
+              {/* Suppress duplicate Where to Watch tab if official providers are already shown in banner above */}
+              {availableProviders.length === 0 && (
+                <button
+                  onClick={() => setActiveTab('watch')}
+                  className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap border-b-2 ${activeTab === 'watch'
+                      ? 'text-white border-red-500'
+                      : 'text-zinc-400 border-transparent hover:text-zinc-200'
+                    }`}
+                >
+                  Where to Watch (0)
+                </button>
+              )}
 
               <button
                 onClick={() => setActiveTab('trailers')}

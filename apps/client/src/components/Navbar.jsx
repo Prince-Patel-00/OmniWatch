@@ -3,6 +3,7 @@ import {
   Film,
   Compass,
   BookmarkCheck,
+  Bookmark,
   BarChart3,
   Search,
   X,
@@ -16,7 +17,7 @@ import {
 } from 'lucide-react';
 
 export default function Navbar({
-  currentView = 'global', // 'global' | 'catalog' | 'stats'
+  currentView = 'global', // 'global' | 'want_to_watch' | 'catalog' | 'stats'
   onViewChange,
   searchQuery = '',
   onSearchChange,
@@ -25,6 +26,7 @@ export default function Navbar({
   activeCharacter = '',
   onClearCharacter,
   catalogCount = 0,
+  wantToWatchCount = 0,
   watchingCount = 0,
   onOpenSettings,
   onOpenBackup,
@@ -99,6 +101,23 @@ export default function Navbar({
             >
               <Compass className="w-4 h-4" />
               <span>Global</span>
+            </button>
+
+            <button
+              onClick={() => onViewChange('want_to_watch')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all relative ${
+                currentView === 'want_to_watch'
+                  ? 'bg-amber-600 text-white shadow-md shadow-amber-950/60 ring-1 ring-amber-400/40'
+                  : 'text-zinc-400 hover:text-white hover:bg-zinc-900/80'
+              }`}
+            >
+              <Bookmark className="w-4 h-4 text-amber-400" />
+              <span>Want to Watch</span>
+              {wantToWatchCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  {wantToWatchCount}
+                </span>
+              )}
             </button>
 
             <button

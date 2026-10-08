@@ -111,4 +111,33 @@ describe('OmniWatch Strict Pagination Non-Overlap Suite', () => {
     assert.equal(duplicates.length, 0, `Expected 0 duplicate catalog items across pages, found: ${JSON.stringify(duplicates)}`);
   });
 
+  it('GET /api/catalog with status=Want to Watch should return exclusively Want to Watch items', async () => {
+    const res = await fetch(`${SERVER_BASE}/catalog?status=Want+to+Watch&limit=50`);
+    assert.equal(res.status, 200);
+    const json = await res.json();
+    assert.equal(json.success, true);
+    for (const item of json.data) {
+      assert.equal(item.userStatus, 'Want to Watch');
+    }
+  });
+
+  it('GET /api/catalog with excludeStatus=Want to Watch should exclude all Want to Watch items', async () => {
+    const res = await fetch(`${SERVER_BASE}/catalog?excludeStatus=Want+to+Watch&limit=50`);
+    assert.equal(res.status, 200);
+    const json = await res.json();
+    assert.equal(json.success, true);
+    for (const item of json.data) {
+      assert.notEqual(item.userStatus, 'Want to Watch');
+    }
+  });
+
+  it('GET /api/global/trending with limit=24 should return exactly 24 uniform items', async () => {
+    const res = await fetch(`${SERVER_BASE}/global/trending?limit=24&page=1`);
+    assert.equal(res.status, 200);
+    const json = await res.json();
+    assert.equal(json.success, true);
+    assert.equal(json.data.length, 24, 'Must return exactly uniform 24 items per page');
+  });
+
 });
+

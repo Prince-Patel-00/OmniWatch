@@ -63,7 +63,8 @@ export default function FilterBar({
   hiddenCount = 0,
   totalSavedCount = 0
 }) {
-  const isCatalog = currentView === 'catalog';
+  const isCatalog = currentView === 'catalog' || currentView === 'want_to_watch';
+  const isWantToWatch = currentView === 'want_to_watch';
   const [showCustomCharInput, setShowCustomCharInput] = useState(false);
   const [charSearchInput, setCharSearchInput] = useState('');
 
@@ -227,9 +228,9 @@ export default function FilterBar({
       </div>
 
       {/* Catalog Status Tabs (when in My Catalog) */}
-      {isCatalog && (
+      {isCatalog && !isWantToWatch && (
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-          {['All', ...USER_WATCH_STATUSES_LIST].map((status) => {
+          {['All', ...USER_WATCH_STATUSES_LIST.filter(s => s !== 'Want to Watch')].map((status) => {
             const isSelected = activeStatus === status;
             return (
               <button
@@ -244,6 +245,16 @@ export default function FilterBar({
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* Want to Watch Header Badge */}
+      {isWantToWatch && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <div className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            <span>Dedicated Watchlist (Want to Watch)</span>
+          </div>
         </div>
       )}
 

@@ -227,6 +227,7 @@ export async function deleteMediaSource(canonicalId, sourceId) {
 export async function getCatalog(params = {}) {
   const q = new URLSearchParams();
   if (params.status && params.status !== 'All') q.set('status', params.status);
+  if (params.excludeStatus) q.set('excludeStatus', params.excludeStatus);
   if (params.type && params.type !== 'All') q.set('type', params.type);
   if (params.sort) q.set('sort', params.sort);
   if (params.favorite) q.set('favorite', 'true');

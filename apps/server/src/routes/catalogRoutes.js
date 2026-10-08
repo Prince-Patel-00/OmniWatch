@@ -24,12 +24,13 @@ router.use(authMiddleware);
 // GET /api/catalog
 router.get('/', async (req, res) => {
   try {
-    const { status, type, sort, favorite, search, genre, animeFormat, format, character, page, limit, excludeIds = '' } = req.query;
+    const { status, excludeStatus, type, sort, favorite, search, genre, animeFormat, format, character, page, limit, excludeIds = '' } = req.query;
     const pageNum = page ? Math.max(1, parseInt(page, 10) || 1) : undefined;
     const limitNum = limit ? Math.max(1, Math.min(100, parseInt(limit, 10) || 24)) : undefined;
 
     const items = await getCatalogItems({
       status: status || 'All',
+      excludeStatus: excludeStatus || '',
       type: type || 'All',
       sort: sort || 'updated_desc',
       favoriteOnly: favorite === 'true',

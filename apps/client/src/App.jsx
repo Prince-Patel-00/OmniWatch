@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Navbar from './components/Navbar.jsx';
-import HeroSpotlight from './components/HeroSpotlight.jsx';
 import FilterBar from './components/FilterBar.jsx';
 import MediaCard from './components/MediaCard.jsx';
 import MediaDetailModal from './components/MediaDetailModal.jsx';
@@ -34,13 +33,13 @@ import {
 import { normalizeTitle } from '@omniwatch/shared';
 
 export default function App() {
-  // Navigation View: 'global' | 'catalog' | 'stats' (persisted in localStorage / URL)
+  // Navigation View: 'global' | 'want_to_watch' | 'catalog' | 'stats' (persisted in localStorage / URL)
   const [currentView, setCurrentView] = useState(() => {
     try {
       const urlTab = new URLSearchParams(window.location.search).get('view');
-      if (urlTab && ['global', 'catalog', 'stats'].includes(urlTab)) return urlTab;
+      if (urlTab && ['global', 'want_to_watch', 'catalog', 'stats'].includes(urlTab)) return urlTab;
       const saved = localStorage.getItem('omniwatch_view');
-      if (saved && ['global', 'catalog', 'stats'].includes(saved)) return saved;
+      if (saved && ['global', 'want_to_watch', 'catalog', 'stats'].includes(saved)) return saved;
     } catch (e) {}
     return 'global';
   });
@@ -169,13 +168,41 @@ export default function App() {
       }
       const excludeIdsParam = priorIds.length > 0 ? priorIds.join(',') : '';
 
-      if (requestedView === 'catalog') {
+      if (requestedView === 'want_to_watch') {
+        const catalogSort = activeSort === 'popularity_desc' 
+          ? 'updated_desc' 
+          : (activeSort === 'release_desc' ? 'year_desc' : activeSort);
+
+        const res = await getCatalog({
+          status: 'Want to Watch',
+          type: activeType,
+          sort: catalogSort,
+          favorite: favoriteOnly,
+          search: debouncedSearch,
+          character: activeCharacter || (searchMode === 'character' ? debouncedSearch : undefined),
+          genre: activeGenre,
+          animeFormat: activeAnimeFormat,
+          page: currentPage,
+          limit: pageSize,
+          excludeIds: excludeIdsParam
+        });
+
+        if (requestId !== activeRequestIdRef.current) return;
+        if (requestedView !== currentView) return;
+
+        if (res.success) {
+          setCatalogMediaList(res.data || []);
+          setHasMore(Boolean(res.hasMore));
+          seenPagesRef.current.set(currentPage, (res.data || []).map((m) => m.id || m.canonicalId).filter(Boolean));
+        }
+      } else if (requestedView === 'catalog') {
         const catalogSort = activeSort === 'popularity_desc' 
           ? 'updated_desc' 
           : (activeSort === 'release_desc' ? 'year_desc' : activeSort);
 
         const res = await getCatalog({
           status: activeStatus,
+          excludeStatus: activeStatus === 'All' ? 'Want to Watch' : '',
           type: activeType,
           sort: catalogSort,
           favorite: favoriteOnly,
@@ -565,28 +592,25 @@ export default function App() {
     return { uncatalogedMedia: uncataloged, hiddenCount: hidden };
   }, [currentView, globalMediaList, catalogMap, catalogItems, hideInCatalog, activeType, animeSubTab, activeGenre]);
 
-  // Spotlight title for Global Hero (from uncataloged items when in Global on page 1)
-  const spotlightMedia = useMemo(() => {
-    if (currentView !== 'global' || debouncedSearch || activeCharacter || currentPage > 1) return null;
-    return uncatalogedMedia[0] || null;
-  }, [currentView, debouncedSearch, activeCharacter, uncatalogedMedia, currentPage]);
-
   // Display items (strictly adheres to view, activeType, animeSubTab, activeGenre, activeSort)
   const displayItems = useMemo(() => {
     let list;
-    if (currentView === 'catalog') {
-      list = catalogMediaList;
-      // Strict catalog safeguard: only items truly recorded in catalog with a user status or canonical id
-      list = list.filter((item) => {
+    if (currentView === 'want_to_watch') {
+      list = catalogMediaList.filter((item) => {
         const canonicalId = item.canonicalId || item.id;
-        return Boolean(item.userStatus) || catalogMap.has(canonicalId);
+        const entry = catalogMap.get(canonicalId);
+        const status = item.userStatus || entry?.userStatus;
+        return status === 'Want to Watch';
+      });
+    } else if (currentView === 'catalog') {
+      list = catalogMediaList.filter((item) => {
+        const canonicalId = item.canonicalId || item.id;
+        const entry = catalogMap.get(canonicalId);
+        const status = item.userStatus || entry?.userStatus;
+        return Boolean(status) && status !== 'Want to Watch';
       });
     } else {
       list = uncatalogedMedia;
-    }
-
-    if (currentView === 'global' && !debouncedSearch && spotlightMedia && currentPage === 1) {
-      list = list.filter((m) => m.id !== spotlightMedia.id);
     }
 
     // Safeguard: Ensure 100% distinct records per page and eliminate any prior page items
@@ -729,6 +753,9 @@ export default function App() {
     }
   };
 
+  const wantToWatchCount = stats?.byStatus?.['Want to Watch'] ?? catalogItems.filter(i => i.userStatus === 'Want to Watch').length;
+  const catalogCount = Math.max(0, (stats?.totalItems ?? catalogItems.length) - wantToWatchCount);
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans selection:bg-red-600 selection:text-white">
       
@@ -742,7 +769,8 @@ export default function App() {
         onSearchModeChange={setSearchMode}
         activeCharacter={activeCharacter}
         onClearCharacter={handleClearCharacter}
-        catalogCount={catalogItems.length}
+        catalogCount={catalogCount}
+        wantToWatchCount={wantToWatchCount}
         watchingCount={stats?.byStatus?.['Watching'] || 0}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenBackup={() => setBackupOpen(true)}
@@ -759,9 +787,13 @@ export default function App() {
           <StatsDashboard
             stats={stats}
             onNavigateToCatalog={(status, type) => {
-              handleViewChange('catalog');
+              if (status === 'Want to Watch') {
+                handleViewChange('want_to_watch');
+              } else {
+                handleViewChange('catalog');
+                if (status) setActiveStatus(status);
+              }
               setActiveSort('updated_desc');
-              if (status) setActiveStatus(status);
               if (type) setActiveType(type);
             }}
             onNavigateToGlobal={() => {
@@ -770,19 +802,6 @@ export default function App() {
           />
         ) : (
           <>
-            {/* Spotlight Banner in Global View */}
-            {spotlightMedia && (
-              <HeroSpotlight
-                media={spotlightMedia}
-                catalogEntry={catalogMap.get(spotlightMedia.id)}
-                onOpenDetail={handleOpenDetail}
-                onWatchTrailer={handleWatchTrailer}
-                onAddOrUpdateCatalog={handleSaveCatalog}
-                onQuickSetStatus={handleQuickSetStatus}
-                onSelectCharacter={handleSelectCharacter}
-              />
-            )}
-
             {/* Filter Bar */}
             <FilterBar
               currentView={currentView}
@@ -842,7 +861,7 @@ export default function App() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
                   {displayItems.map((item) => {
                     const canonicalId = item.canonicalId || item.id;
-                    const catEntry = catalogMap.get(canonicalId) || (currentView === 'catalog' ? item : null);
+                    const catEntry = catalogMap.get(canonicalId) || (currentView === 'catalog' || currentView === 'want_to_watch' ? item : null);
 
                     return (
                       <MediaCard
@@ -870,7 +889,7 @@ export default function App() {
                       setPageSize(size);
                       setCurrentPage(1);
                     }}
-                    totalCount={currentView === 'catalog' ? (catalogItems?.length || 0) : null}
+                    totalCount={currentView === 'catalog' ? catalogCount : (currentView === 'want_to_watch' ? wantToWatchCount : null)}
                     isLoading={loading}
                   />
                 )}
@@ -879,22 +898,26 @@ export default function App() {
               /* Empty State */
               <div className="p-12 text-center rounded-3xl bg-zinc-900/30 border border-zinc-800/60 space-y-4 my-8">
                 <div className="w-16 h-16 rounded-full bg-zinc-900 flex items-center justify-center mx-auto text-zinc-500 border border-zinc-800 text-2xl">
-                  {activeCharacter ? '👤' : (currentView === 'catalog' ? '📚' : '🔍')}
+                  {activeCharacter ? '👤' : (currentView === 'want_to_watch' ? '🔖' : (currentView === 'catalog' ? '📚' : '🔍'))}
                 </div>
                 <div className="space-y-1">
                   <h3 className="text-lg font-bold text-white">
                     {activeCharacter
                       ? `No titles found starring "${activeCharacter}"`
-                      : (currentView === 'catalog'
-                        ? 'No titles found in your personal catalog.'
-                        : 'No media found matching your search or filters.')}
+                      : (currentView === 'want_to_watch'
+                        ? 'No titles currently in your "Want to Watch" list.'
+                        : (currentView === 'catalog'
+                          ? 'No titles found in your personal catalog.'
+                          : 'No media found matching your search or filters.'))}
                   </h3>
                   <p className="text-xs sm:text-sm text-zinc-400 max-w-md mx-auto">
                     {activeCharacter
                       ? 'Try searching for another iconic lead character or clear this character filter.'
-                      : (currentView === 'catalog'
-                        ? 'Head over to Global discovery to explore trending anime, movies, and series, and add them to your watchlist!'
-                        : 'Try broadening your search query or switching category filters.')}
+                      : (currentView === 'want_to_watch'
+                        ? 'Browse Global Discovery to bookmark movies, anime, and series you want to watch next!'
+                        : (currentView === 'catalog'
+                          ? 'Head over to Global discovery to explore trending anime, movies, and series, and add them to your watchlist!'
+                          : 'Try broadening your search query or switching category filters.'))}
                   </p>
                 </div>
 

@@ -1005,7 +1005,7 @@ export function getCachedTrending(type = 'All', limit = 24, opts = {}) {
 
 export function getCatalogItems(opts = {}) {
   if (isNeon()) return neonDB.getCatalogItems(opts);
-  const { status = 'All', type = 'All', sort = 'updated_desc', favoriteOnly = false, genre = 'All', search = '', animeFormat = 'All', format = 'All', character = '', mainCharOnly = false, page, limit, userId } = opts;
+  const { status = 'All', excludeStatus = '', type = 'All', sort = 'updated_desc', favoriteOnly = false, genre = 'All', search = '', animeFormat = 'All', format = 'All', character = '', mainCharOnly = false, page, limit, userId } = opts;
   const db = getDB();
   let sql = 'SELECT * FROM catalog_items WHERE 1=1';
   const params = [];
@@ -1024,6 +1024,11 @@ export function getCatalogItems(opts = {}) {
       sql += ' AND user_status = ?';
       params.push(status);
     }
+  }
+
+  if (excludeStatus && excludeStatus.trim()) {
+    sql += ' AND user_status != ?';
+    params.push(excludeStatus.trim());
   }
 
   if (type && type !== 'All') {
