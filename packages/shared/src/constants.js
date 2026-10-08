@@ -308,7 +308,7 @@ export const DEFAULT_MIRROR_REGISTRY = [
     audio: 'Sub & Dub',
     currentDomain: 'anikototv.to',
     candidateDomains: ['anikototv.to', 'anikoto.to'],
-    searchTemplate: 'https://{domain}/search?keyword={query}',
+    searchTemplate: 'https://{domain}/filter?keyword={query}',
     directUrlTemplate: 'https://{domain}/',
     statusNote: 'Sub & Dub tracker',
     sortOrder: 10
@@ -378,7 +378,7 @@ export const DEFAULT_MIRROR_REGISTRY = [
     audio: 'English Original & Multi-Sub',
     currentDomain: 'lookmovie-offcial.cyou',
     candidateDomains: ['lookmovie-offcial.cyou', 'lookmovie.buzz', 'lookmovie2.to', 'lookmovie.ag'],
-    searchTemplate: 'https://{domain}/?s={query}',
+    searchTemplate: 'https://{domain}/search/?q={query}',
     directUrlTemplate: 'https://{domain}/',
     statusNote: 'Verified active LookMovie mirror',
     sortOrder: 15
@@ -392,7 +392,7 @@ export const DEFAULT_MIRROR_REGISTRY = [
     audio: 'Clean Multi-Sub',
     currentDomain: 'nepu-offcial.cyou',
     candidateDomains: ['nepu-offcial.cyou', 'nepu.to', 'nepu.cc'],
-    searchTemplate: 'https://{domain}/?s={query}',
+    searchTemplate: 'https://{domain}/search/?q={query}',
     directUrlTemplate: 'https://{domain}/',
     statusNote: 'Verified active Nepu mirror',
     sortOrder: 16
@@ -448,7 +448,7 @@ export const DEFAULT_MIRROR_REGISTRY = [
     audio: 'English 5.1 Multi-Sub',
     currentDomain: 'cineby.tv',
     candidateDomains: ['cineby.tv', 'cineby.bz', 'cineby.app'],
-    searchTemplate: 'https://{domain}/search?q={query}',
+    searchTemplate: 'https://{domain}/search/?q={query}',
     directUrlTemplate: 'https://{domain}/',
     statusNote: 'Active .tv modern streaming mirror',
     sortOrder: 20
@@ -490,7 +490,7 @@ export const DEFAULT_MIRROR_REGISTRY = [
     audio: 'Multi-Sub Clean',
     currentDomain: 'flixway.to',
     candidateDomains: ['flixway.to'],
-    searchTemplate: 'https://{domain}/search?q={query}',
+    searchTemplate: 'https://{domain}/search?query={query}',
     directUrlTemplate: 'https://{domain}/',
     statusNote: 'Clean multi-server stream index',
     sortOrder: 23

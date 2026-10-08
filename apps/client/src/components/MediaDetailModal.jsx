@@ -49,6 +49,7 @@ export default function MediaDetailModal({
   onDeleteCatalog,
   onToggleEpisode,
   onBatchSeason,
+  onUpdateSeasonsCompleted,
   onRefreshMedia,
   onWatchTrailer,
   onSelectRelated,
@@ -62,6 +63,7 @@ export default function MediaDetailModal({
   const [isCheckingDomains, setIsCheckingDomains] = useState(false);
   const [notesInput, setNotesInput] = useState(catalogEntry?.notes || '');
   const [showNotesEditor, setShowNotesEditor] = useState(false);
+  const [syncEpisodesWithSeasons, setSyncEpisodesWithSeasons] = useState(true);
 
   // Helper to merge fresh verified default mirrors with any saved custom mirrors
   const getMergedSources = (m) => {
@@ -286,6 +288,79 @@ export default function MediaDetailModal({
       });
       onShowToast?.(`Added "${media.title}" to Watching and logged Ep ${epNum}`, 'success');
     }
+  };
+
+  // Season Completion & Granular Status Handler
+  const totalSeasonsCount = Math.max(
+    1,
+    media?.totalSeasons || media?.seasons?.length || catalogEntry?.totalSeasons || 1
+  );
+  const seasonsCompleted = catalogEntry?.seasonsCompleted ?? 0;
+
+  const handleUpdateSeasons = async (newCompletedCount, targetStatus = null) => {
+    const clampedCount = Math.max(0, Math.min(totalSeasonsCount, newCompletedCount));
+    let finalStatus = targetStatus;
+
+    if (!finalStatus) {
+      if (clampedCount >= totalSeasonsCount) {
+        finalStatus = 'Completed';
+      } else if (clampedCount > 0) {
+        finalStatus = catalogEntry?.userStatus || 'Watching';
+      } else {
+        finalStatus = catalogEntry?.userStatus || 'Want to Watch';
+      }
+    }
+
+    const nextSeasonNum = clampedCount < totalSeasonsCount ? clampedCount + 1 : totalSeasonsCount;
+
+    if (catalogEntry) {
+      if (typeof onUpdateSeasonsCompleted === 'function') {
+        await onUpdateSeasonsCompleted(catalogEntry.id, {
+          seasonsCompleted: clampedCount,
+          userStatus: finalStatus,
+          syncEpisodes: syncEpisodesWithSeasons,
+          currentSeason: nextSeasonNum,
+          totalSeasons: totalSeasonsCount
+        });
+      } else {
+        await onUpdateCatalog(catalogEntry.id, {
+          seasonsCompleted: clampedCount,
+          userStatus: finalStatus,
+          currentSeason: nextSeasonNum,
+          totalSeasons: totalSeasonsCount,
+          syncEpisodes: syncEpisodesWithSeasons
+        });
+      }
+    } else {
+      // Auto-add to catalog directly
+      await onSaveCatalog({
+        canonicalId: media.id,
+        title: media.title,
+        mediaType: media.mediaType,
+        format: media.format || (media.isMovie ? 'Movie' : 'Series'),
+        posterUrl: media.posterUrl,
+        backdropUrl: media.backdropUrl,
+        releaseYear: media.releaseYear,
+        userStatus: finalStatus,
+        seasonsCompleted: clampedCount,
+        totalSeasons: totalSeasonsCount,
+        currentSeason: nextSeasonNum,
+        totalEpisodes: media.totalEpisodes,
+        syncEpisodes: syncEpisodesWithSeasons
+      });
+    }
+
+    const toastMsg = clampedCount >= totalSeasonsCount
+      ? `Completed all ${totalSeasonsCount} seasons! 🎉`
+      : finalStatus === 'Dropped'
+      ? `Dropped after Season ${clampedCount}`
+      : finalStatus === 'On Hold'
+      ? `On Hold after Season ${clampedCount}`
+      : finalStatus === 'Want to Watch'
+      ? `Completed ${clampedCount} seasons • Want to Watch Season ${nextSeasonNum}`
+      : `Completed ${clampedCount} seasons • Watching Season ${nextSeasonNum}`;
+
+    onShowToast?.(toastMsg, 'success');
   };
 
   // On-demand refresh
@@ -592,6 +667,182 @@ export default function MediaDetailModal({
             )}
 
           </div>
+
+          {/* Season Completion & Granular Status Hub (For Series & Anime) */}
+          {isEpisodic && (
+            <div className="mx-4 sm:mx-6 my-4 p-4 sm:p-5 rounded-2xl bg-zinc-900/80 border border-zinc-800 shadow-xl space-y-4">
+              {/* Hub Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-red-600/15 border border-red-500/30 text-red-400">
+                    <Tv className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-extrabold text-white flex items-center gap-2">
+                      <span>Season Completion & Progress</span>
+                      {seasonsCompleted > 0 && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                          {seasonsCompleted}/{totalSeasonsCount} Seasons Done
+                        </span>
+                      )}
+                    </h4>
+                    <p className="text-[11px] text-zinc-400">
+                      Track seasons watched, drop points, or queue upcoming seasons (e.g. S3 completed, waiting for S4)
+                    </p>
+                  </div>
+                </div>
+
+                {/* Stepper Controls */}
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <button
+                    onClick={() => handleUpdateSeasons(seasonsCompleted - 1)}
+                    disabled={seasonsCompleted <= 0}
+                    className="w-8 h-8 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 disabled:pointer-events-none text-zinc-200 flex items-center justify-center font-bold text-sm transition-all"
+                    title="Decrease completed seasons"
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
+
+                  <div className="px-3.5 py-1 rounded-xl bg-zinc-950 border border-zinc-700/80 text-center min-w-[100px]">
+                    <span className="text-sm font-black text-white">
+                      {seasonsCompleted}
+                    </span>
+                    <span className="text-xs text-zinc-400 font-semibold"> / {totalSeasonsCount} Sns</span>
+                  </div>
+
+                  <button
+                    onClick={() => handleUpdateSeasons(seasonsCompleted + 1)}
+                    disabled={seasonsCompleted >= totalSeasonsCount}
+                    className="w-8 h-8 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:pointer-events-none text-white flex items-center justify-center font-bold text-sm transition-all shadow-md shadow-red-950/40"
+                    title="Increase completed seasons"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Visual Season Pills Selector */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                {Array.from({ length: totalSeasonsCount }, (_, idx) => {
+                  const sNum = idx + 1;
+                  const isDone = sNum <= seasonsCompleted;
+                  const isCurrent = sNum === seasonsCompleted + 1;
+
+                  return (
+                    <button
+                      key={sNum}
+                      onClick={() => handleUpdateSeasons(isDone && sNum === seasonsCompleted ? sNum - 1 : sNum)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 border ${
+                        isDone
+                          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40 shadow-sm'
+                          : isCurrent
+                          ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 ring-1 ring-amber-500/20'
+                          : 'bg-zinc-950 text-zinc-500 border-zinc-800 hover:text-zinc-300 hover:bg-zinc-900'
+                      }`}
+                      title={`Click to mark Season ${sNum} as ${isDone ? 'incomplete' : 'completed'}`}
+                    >
+                      {isDone ? (
+                        <Check className="w-3 h-3 text-emerald-400 stroke-[3]" />
+                      ) : isCurrent ? (
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                      ) : null}
+                      <span>Season {sNum}</span>
+                      {isDone ? (
+                        <span className="text-[10px] text-emerald-400 font-normal">Done</span>
+                      ) : isCurrent ? (
+                        <span className="text-[10px] text-amber-400 font-normal">Next</span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Contextual Status Presets Based on User Scenarios */}
+              <div className="pt-2 border-t border-zinc-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-zinc-400 font-semibold">Status for this progress:</span>
+
+                  {seasonsCompleted < totalSeasonsCount ? (
+                    <>
+                      {/* Scenario: FROM - Watched 3 seasons, waiting/want to watch Season 4 */}
+                      <button
+                        onClick={() => handleUpdateSeasons(seasonsCompleted, 'Want to Watch')}
+                        className={`px-2.5 py-1 rounded-lg font-bold border transition-all ${
+                          catalogEntry?.userStatus === 'Want to Watch'
+                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm'
+                            : 'bg-zinc-950 text-zinc-400 border-zinc-800 hover:text-amber-300 hover:border-amber-500/30'
+                        }`}
+                        title={`I completed ${seasonsCompleted} seasons and want to watch Season ${seasonsCompleted + 1} next`}
+                      >
+                        ⏳ Want to Watch (Next S{seasonsCompleted + 1})
+                      </button>
+
+                      {/* Scenario: Watching Season 4 */}
+                      <button
+                        onClick={() => handleUpdateSeasons(seasonsCompleted, 'Watching')}
+                        className={`px-2.5 py-1 rounded-lg font-bold border transition-all ${
+                          catalogEntry?.userStatus === 'Watching'
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm'
+                            : 'bg-zinc-950 text-zinc-400 border-zinc-800 hover:text-emerald-300 hover:border-emerald-500/30'
+                        }`}
+                        title={`I am currently watching Season ${seasonsCompleted + 1}`}
+                      >
+                        ▶️ Watching (S{seasonsCompleted + 1})
+                      </button>
+
+                      {/* Scenario: Vampire Diaries - Watched 3 seasons and dropped */}
+                      <button
+                        onClick={() => handleUpdateSeasons(seasonsCompleted, 'Dropped')}
+                        className={`px-2.5 py-1 rounded-lg font-bold border transition-all ${
+                          catalogEntry?.userStatus === 'Dropped'
+                            ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 shadow-sm'
+                            : 'bg-zinc-950 text-zinc-400 border-zinc-800 hover:text-rose-300 hover:border-rose-500/30'
+                        }`}
+                        title={`I finished Season ${seasonsCompleted} and decided to drop the series`}
+                      >
+                        🛑 Dropped (after S{seasonsCompleted})
+                      </button>
+
+                      {/* Scenario: On Hold after Season X */}
+                      <button
+                        onClick={() => handleUpdateSeasons(seasonsCompleted, 'On Hold')}
+                        className={`px-2.5 py-1 rounded-lg font-bold border transition-all ${
+                          catalogEntry?.userStatus === 'On Hold'
+                            ? 'bg-blue-500/20 text-blue-300 border-blue-500/50 shadow-sm'
+                            : 'bg-zinc-950 text-zinc-400 border-zinc-800 hover:text-blue-300 hover:border-blue-500/30'
+                        }`}
+                        title={`I finished Season ${seasonsCompleted} and paused on hold`}
+                      >
+                        ⏸️ On Hold (after S{seasonsCompleted})
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => handleUpdateSeasons(totalSeasonsCount, 'Completed')}
+                      className={`px-2.5 py-1 rounded-lg font-bold border transition-all ${
+                        catalogEntry?.userStatus === 'Completed'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm'
+                          : 'bg-zinc-950 text-zinc-400 border-zinc-800 hover:text-emerald-300'
+                      }`}
+                    >
+                      🏆 Completed (All {totalSeasonsCount} Seasons)
+                    </button>
+                  )}
+                </div>
+
+                {/* Auto episode sync checkmark */}
+                <label className="flex items-center gap-2 cursor-pointer text-zinc-400 hover:text-zinc-300 select-none">
+                  <input
+                    type="checkbox"
+                    checked={syncEpisodesWithSeasons}
+                    onChange={(e) => setSyncEpisodesWithSeasons(e.target.checked)}
+                    className="rounded bg-zinc-950 border-zinc-700 text-red-600 focus:ring-0 cursor-pointer"
+                  />
+                  <span className="text-[11px]">Auto-sync episode checkmarks</span>
+                </label>
+              </div>
+            </div>
+          )}
 
           {/* Official Streaming Availability Banner */}
           {availableProviders.length > 0 && (
@@ -917,24 +1168,25 @@ export default function MediaDetailModal({
                             <User className="w-4 h-4 text-red-400" />
                             <span>Top Cast & Characters</span>
                           </h3>
-                          <span className="text-[11px] text-zinc-500 font-medium">Click character to find titles</span>
+                          <span className="text-[11px] text-zinc-500 font-medium">Click actor or character to explore titles</span>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                           {media.cast.slice(0, 9).map((c, i) => {
                             const isLead = c.role === 'MAIN';
                             const charName = c.character || c.actor;
+                            const filterTarget = c.actor || c.character || charName;
                             return (
                               <div
                                 key={i}
                                 onClick={() => {
-                                  if (onSelectCharacter && c.character) {
-                                    onSelectCharacter(c.character);
+                                  if (onSelectCharacter && filterTarget) {
+                                    onSelectCharacter(filterTarget);
                                     onClose();
                                   }
                                 }}
-                                title={c.character ? `Click to filter all titles starring "${c.character}"` : ''}
+                                title={filterTarget ? `Click to filter all titles starring "${filterTarget}"` : ''}
                                 className={`group flex items-center gap-3 p-2.5 rounded-xl border transition-all ${
-                                  onSelectCharacter && c.character 
+                                  onSelectCharacter && filterTarget 
                                     ? 'bg-zinc-900/70 hover:bg-zinc-800/90 border-zinc-800/80 hover:border-red-500/50 cursor-pointer shadow-sm hover:shadow-red-950/20 hover:scale-[1.02]' 
                                     : 'bg-zinc-900/60 border-zinc-800/80'
                                 }`}
@@ -966,7 +1218,7 @@ export default function MediaDetailModal({
                                       {c.actor}
                                     </p>
                                   )}
-                                  {onSelectCharacter && c.character && (
+                                  {onSelectCharacter && filterTarget && (
                                     <span className="text-[9.5px] font-semibold text-red-400/90 group-hover:text-red-400 flex items-center gap-0.5 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                       <span>Find titles</span>
                                       <ChevronRight className="w-2.5 h-2.5" />
@@ -1128,6 +1380,8 @@ export default function MediaDetailModal({
               <EpisodeGuide
                 seasons={media.seasons || []}
                 watchedEpisodes={catalogEntry?.watchedEpisodes || []}
+                seasonsCompleted={seasonsCompleted}
+                onSetSeasonsCompleted={handleUpdateSeasons}
                 onToggleWatched={handleEpisodeToggleFrictionless}
                 onBatchSeasonWatched={(sNum, count, watched) => {
                   if (catalogEntry) {

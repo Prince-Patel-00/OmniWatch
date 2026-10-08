@@ -24,6 +24,7 @@ import {
   deleteFromCatalog,
   toggleEpisodeProgress,
   batchSeasonProgress,
+  updateSeasonsCompleted,
   getSystemStatus
 } from './services/api.js';
 import { normalizeTitle } from '@omniwatch/shared';
@@ -68,6 +69,7 @@ export default function App() {
 
   // Request counter to ensure stale async responses never overwrite active view
   const activeRequestIdRef = useRef(0);
+  const seenPagesRef = useRef(new Map());
 
   // Modals & Popups
   const [selectedMedia, setSelectedMedia] = useState(null);
@@ -129,6 +131,17 @@ export default function App() {
 
       const activeAnimeFormat = activeType === 'Anime' ? animeSubTab : 'All';
 
+      // Collect IDs seen on prior pages to strictly eliminate any cross-page duplicates
+      const priorIds = [];
+      if (currentPage > 1) {
+        for (const [p, ids] of seenPagesRef.current.entries()) {
+          if (p < currentPage && Array.isArray(ids)) {
+            priorIds.push(...ids);
+          }
+        }
+      }
+      const excludeIdsParam = priorIds.length > 0 ? priorIds.join(',') : '';
+
       if (requestedView === 'catalog') {
         const catalogSort = activeSort === 'popularity_desc' 
           ? 'updated_desc' 
@@ -144,7 +157,8 @@ export default function App() {
           genre: activeGenre,
           animeFormat: activeAnimeFormat,
           page: currentPage,
-          limit: pageSize
+          limit: pageSize,
+          excludeIds: excludeIdsParam
         });
 
         // Guard against race conditions: ignore if newer request initiated or view switched
@@ -154,6 +168,7 @@ export default function App() {
         if (res.success) {
           setCatalogMediaList(res.data || []);
           setHasMore(Boolean(res.hasMore));
+          seenPagesRef.current.set(currentPage, (res.data || []).map((m) => m.id || m.canonicalId).filter(Boolean));
         }
       } else if (requestedView === 'global') {
         const globalSort = activeSort === 'updated_desc' || activeSort === 'progress_desc'
@@ -176,12 +191,13 @@ export default function App() {
             searchMode: searchMode,
             mainCharOnly: Boolean(activeCharacter || searchMode === 'character'),
             page: currentPage,
-            limit: pageSize
+            limit: pageSize,
+            excludeIds: excludeIdsParam
           });
         } else if (globalTab === 'upcoming') {
-          res = await getUpcomingMedia(activeType, globalSort, activeAnimeFormat, currentPage, pageSize, activeGenre);
+          res = await getUpcomingMedia(activeType, globalSort, activeAnimeFormat, currentPage, pageSize, activeGenre, excludeIdsParam);
         } else {
-          res = await getTrendingMedia(activeType, globalSort, activeAnimeFormat, currentPage, pageSize, activeGenre);
+          res = await getTrendingMedia(activeType, globalSort, activeAnimeFormat, currentPage, pageSize, activeGenre, '', excludeIdsParam);
         }
 
         // Guard against race conditions: ignore if newer request initiated or view switched
@@ -191,6 +207,7 @@ export default function App() {
         if (res.success) {
           setGlobalMediaList(res.data || []);
           setHasMore(Boolean(res.hasMore));
+          seenPagesRef.current.set(currentPage, (res.data || []).map((m) => m.id || m.canonicalId).filter(Boolean));
         }
       }
     } catch (err) {
@@ -207,6 +224,7 @@ export default function App() {
 
   // Reset page when search or filters change
   useEffect(() => {
+    seenPagesRef.current.clear();
     setCurrentPage(1);
   }, [currentView, globalTab, debouncedSearch, activeCharacter, searchMode, activeType, animeSubTab, activeStatus, activeGenre, activeSort, favoriteOnly, pageSize]);
 
@@ -384,6 +402,31 @@ export default function App() {
     }
   };
 
+  // Update Seasons Completed Progress & Status
+  const handleUpdateSeasonsCompleted = async (catalogItemId, { seasonsCompleted, userStatus, syncEpisodes, currentSeason, totalSeasons }) => {
+    try {
+      const res = await updateSeasonsCompleted(catalogItemId, {
+        seasonsCompleted,
+        userStatus,
+        syncEpisodes,
+        currentSeason,
+        totalSeasons
+      });
+
+      if (res.success && res.data) {
+        setCatalogMediaList((prev) =>
+          prev.map((item) => (item.id === catalogItemId ? { ...item, ...res.data } : item))
+        );
+        if (selectedMedia) {
+          setSelectedMedia((prev) => ({ ...prev }));
+        }
+        await refreshCatalogVault();
+      }
+    } catch (err) {
+      showToast(`Error updating season progress: ${err.message}`, 'error');
+    }
+  };
+
   // On-demand refresh of title details
   const handleRefreshMedia = async (canonicalId) => {
     const res = await refreshMediaDetail(canonicalId);
@@ -519,6 +562,26 @@ export default function App() {
       list = list.filter((m) => m.id !== spotlightMedia.id);
     }
 
+    // Safeguard: Ensure 100% distinct records per page and eliminate any prior page items
+    const priorSeenIds = new Set();
+    if (currentPage > 1) {
+      for (const [p, ids] of seenPagesRef.current.entries()) {
+        if (p < currentPage && Array.isArray(ids)) {
+          ids.forEach((id) => priorSeenIds.add(id));
+        }
+      }
+    }
+
+    const seenCurrentPageIds = new Set();
+    list = list.filter((m) => {
+      const uniqueId = m.id || m.canonicalId;
+      if (!uniqueId) return false;
+      if (currentPage > 1 && priorSeenIds.has(uniqueId)) return false;
+      if (seenCurrentPageIds.has(uniqueId)) return false;
+      seenCurrentPageIds.add(uniqueId);
+      return true;
+    });
+
     // Client-side filter by type
     if (activeType !== 'All') {
       list = list.filter((m) => {
@@ -549,22 +612,25 @@ export default function App() {
       });
     }
 
-    // Client-side filter by lead character if active
+    // Client-side filter by lead character or actor if active
     if (activeCharacter) {
       const charLower = activeCharacter.toLowerCase();
       list = list.filter((m) => {
-        if (m.matchedCharacter && m.matchedCharacter.name?.toLowerCase().includes(charLower)) return true;
+        if (m.matchedPerson && (m.matchedPerson.name || '').toLowerCase().includes(charLower)) return true;
+        if (m.matchedCharacter && (m.matchedCharacter.name || '').toLowerCase().includes(charLower)) return true;
         const inMain = Array.isArray(m.mainCharacters) && m.mainCharacters.some((c) =>
-          (typeof c === 'string' ? c : c.name || '').toLowerCase().includes(charLower)
+          (typeof c === 'string' ? c : (c.name || c.character || c.actor || '')).toLowerCase().includes(charLower)
         );
         if (inMain) return true;
-        const inCast = Array.isArray(m.cast) && m.cast.some((c) =>
-          (c.character || c.name || '').toLowerCase().includes(charLower)
-        );
+        const inCast = Array.isArray(m.cast) && m.cast.some((c) => {
+          const charName = (c.character || c.name || '').toLowerCase();
+          const actorName = (c.actor || '').toLowerCase();
+          return charName.includes(charLower) || actorName.includes(charLower);
+        });
         if (inCast) return true;
         if (m.title && m.title.toLowerCase().includes(charLower)) return true;
         if (m.synopsis && m.synopsis.toLowerCase().includes(charLower)) return true;
-        return true;
+        return false;
       });
     }
 
@@ -804,8 +870,8 @@ export default function App() {
 
                 {activeCharacter && (
                   <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
-                    <span className="text-xs text-zinc-500">Try popular leads:</span>
-                    {['Luffy', 'Eren Yeager', 'Frieren', 'Walter White'].map((c) => (
+                    <span className="text-xs text-zinc-500">Try popular leads & actors:</span>
+                    {['Andrew Garfield', 'Spider-Man', 'Walter White', 'Cillian Murphy', 'Luffy'].map((c) => (
                       <button
                         key={c}
                         onClick={() => handleSelectCharacter(c)}
@@ -873,6 +939,7 @@ export default function App() {
           onDeleteCatalog={handleDeleteCatalog}
           onToggleEpisode={handleToggleEpisode}
           onBatchSeason={handleBatchSeason}
+          onUpdateSeasonsCompleted={handleUpdateSeasonsCompleted}
           onRefreshMedia={handleRefreshMedia}
           onWatchTrailer={handleWatchTrailer}
           onSelectRelated={handleOpenDetail}

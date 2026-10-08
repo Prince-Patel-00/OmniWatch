@@ -45,6 +45,10 @@ const TMDB_TV_GENRES = {
   War: 10768,
   Western: 37
 };
+const TMDB_ALL_GENRES_MAP = {
+  ...Object.fromEntries(Object.entries(TMDB_MOVIE_GENRES).map(([name, id]) => [id, name])),
+  ...Object.fromEntries(Object.entries(TMDB_TV_GENRES).map(([name, id]) => [id, name]))
+};
 
 export class TMDBProvider extends BaseProvider {
   constructor(apiKey = process.env.TMDB_API_KEY) {
@@ -85,6 +89,8 @@ export class TMDBProvider extends BaseProvider {
 
   normalizeTMDBItem(item, detailed = false) {
     if (!item) return null;
+    // Skip raw person entities from multi-search
+    if (item.media_type === 'person') return null;
 
     const isMovie = item.media_type === 'movie' || Boolean(item.title) || !item.name;
     const mediaType = isMovie ? 'Movie' : 'Series';
@@ -104,16 +110,38 @@ export class TMDBProvider extends BaseProvider {
     else if (item.status === 'Returning Series') status = 'Airing';
     else if (item.status === 'Ended' || item.status === 'Canceled') status = 'Completed';
 
-    const genres = (item.genres || []).map(g => g.name);
+    let genres = (item.genres || []).map(g => g.name);
+    if (genres.length === 0 && Array.isArray(item.genre_ids)) {
+      genres = item.genre_ids.map(id => TMDB_ALL_GENRES_MAP[id]).filter(Boolean);
+    }
 
     // Cast & Crew
-    const cast = (item.credits?.cast || []).slice(0, 10).map((c, idx) => ({
+    let cast = (item.credits?.cast || []).slice(0, 10).map((c, idx) => ({
       character: c.character,
       characterImage: c.profile_path ? `${TMDB_IMAGE_BASE}/w185${c.profile_path}` : null,
       actor: c.name,
       actorImage: c.profile_path ? `${TMDB_IMAGE_BASE}/w185${c.profile_path}` : null,
       role: idx < 3 ? 'MAIN' : 'SUPPORTING'
     }));
+
+    // If item was derived from an actor / credit search, inject the matched actor & role
+    if (item.matchedPerson) {
+      const charName = item.character || item.matchedPerson.character || 'Lead';
+      const actorName = item.matchedPerson.name;
+      const existingIdx = cast.findIndex(c => (c.actor || '').toLowerCase() === actorName.toLowerCase());
+      if (existingIdx >= 0) {
+        cast[existingIdx].character = charName;
+        cast[existingIdx].role = 'MAIN';
+      } else {
+        cast.unshift({
+          character: charName,
+          characterImage: null,
+          actor: actorName,
+          actorImage: item.matchedPerson.image || null,
+          role: 'MAIN'
+        });
+      }
+    }
 
     const directors = (item.credits?.crew || [])
       .filter(c => c.job === 'Director')
@@ -241,6 +269,22 @@ export class TMDBProvider extends BaseProvider {
       networks: (item.networks || []).map(n => n.name),
       creators,
       cast,
+      mainCharacters: (() => {
+        const mains = cast.filter(c => c.role === 'MAIN');
+        return (mains.length > 0 ? mains : cast).slice(0, 4).map(c => ({
+          name: c.character || c.actor,
+          image: c.characterImage || c.actorImage || null,
+          role: c.role || 'MAIN',
+          actor: c.actor || null
+        }));
+      })(),
+      matchedPerson: item.matchedPerson || null,
+      matchedCharacter: item.matchedPerson ? {
+        name: item.matchedPerson.character || item.matchedPerson.name,
+        actor: item.matchedPerson.name,
+        image: item.matchedPerson.image || null,
+        role: 'MAIN'
+      } : null,
       totalSeasons,
       totalEpisodes,
       nextAiringEpisode: item.next_episode_to_air?.episode_number || null,
@@ -263,16 +307,106 @@ export class TMDBProvider extends BaseProvider {
     };
   }
 
-  async search(query, { type = 'All', page = 1, genre = 'All' } = {}) {
-    if (!this.isAvailable() || !query?.trim()) return [];
+  async searchPersonCredits(personQuery, { type = 'All', page = 1, limit = 24 } = {}) {
+    if (!this.isAvailable() || !personQuery?.trim()) return [];
+
+    try {
+      const q = personQuery.trim();
+      const personRes = await this.tmdbFetch('/search/person', { query: q, page: 1 });
+      const persons = personRes?.results || [];
+      if (persons.length === 0) return [];
+
+      // Find top matched person
+      const qLower = q.toLowerCase();
+      const topPerson = persons.find(p => p.name?.toLowerCase() === qLower) || persons[0];
+      if (!topPerson || !topPerson.id) return [];
+
+      const creditsRes = await this.tmdbFetch(`/person/${topPerson.id}/combined_credits`);
+      const rawCredits = creditsRes?.cast || [];
+      if (rawCredits.length === 0) return [];
+
+      // Filter out talk show / self appearances unless that's all that exists
+      let filteredCredits = rawCredits.filter(c => {
+        const char = (c.character || '').trim().toLowerCase();
+        const isTalkShow = char.startsWith('self') || char === '' || c.genre_ids?.includes(10767);
+        return !isTalkShow;
+      });
+
+      if (filteredCredits.length === 0) {
+        filteredCredits = rawCredits;
+      }
+
+      // Filter by type if requested
+      if (type === 'Movie') {
+        filteredCredits = filteredCredits.filter(c => c.media_type === 'movie');
+      } else if (type === 'Series') {
+        filteredCredits = filteredCredits.filter(c => c.media_type === 'tv');
+      }
+
+      // Sort by popularity descending
+      filteredCredits.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+
+      const personImage = topPerson.profile_path ? `${TMDB_IMAGE_BASE}/w185${topPerson.profile_path}` : null;
+      const matchedPerson = {
+        name: topPerson.name,
+        image: personImage,
+        type: 'ACTOR'
+      };
+
+      const pageNum = Math.max(1, parseInt(page, 10) || 1);
+      const limitNum = Math.max(1, parseInt(limit, 10) || 24);
+      const offset = (pageNum - 1) * limitNum;
+
+      const items = filteredCredits.slice(offset, offset + limitNum).map(credit => {
+        const withPerson = {
+          ...credit,
+          matchedPerson: {
+            ...matchedPerson,
+            character: credit.character
+          }
+        };
+        return this.normalizeTMDBItem(withPerson);
+      }).filter(Boolean);
+
+      return items;
+    } catch (err) {
+      console.warn('[TMDBProvider] searchPersonCredits error:', err.message);
+      return [];
+    }
+  }
+
+  async search(query, { type = 'All', page = 1, genre = 'All', character = null, searchMode = 'all' } = {}) {
+    if (!this.isAvailable() || (!query?.trim() && !character?.trim())) return [];
+
+    const cleanQ = (query || character || '').trim();
+    const isCharacterSearch = Boolean(character) || searchMode === 'character';
+
+    // If explicit character/actor search, query person credits directly
+    if (isCharacterSearch) {
+      const personHits = await this.searchPersonCredits(character || cleanQ, { type, page, limit: 30 });
+      if (personHits.length > 0) return personHits;
+    }
 
     let endpoint = '/search/multi';
     if (type === 'Movie') endpoint = '/search/movie';
     else if (type === 'Series') endpoint = '/search/tv';
 
     try {
-      const res = await this.tmdbFetch(endpoint, { query: query.trim(), page });
-      let items = (res?.results || []).map(r => this.normalizeTMDBItem(r)).filter(Boolean);
+      const [titleRes, personItems] = await Promise.all([
+        this.tmdbFetch(endpoint, { query: cleanQ, page }),
+        this.searchPersonCredits(cleanQ, { type, page, limit: 24 }).catch(() => [])
+      ]);
+
+      let items = (titleRes?.results || [])
+        .filter(r => r.media_type !== 'person') // Skip raw person entities from multi-search
+        .map(r => this.normalizeTMDBItem(r))
+        .filter(Boolean);
+
+      if (Array.isArray(personItems) && personItems.length > 0) {
+        // Prepend person credit items so actor filmography appears at the top
+        items = [...personItems, ...items];
+      }
+
       if (genre && genre !== 'All') {
         const gLower = genre.toLowerCase();
         items = items.filter(it => (it.genres || []).some(g => g.toLowerCase().includes(gLower)));

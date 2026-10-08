@@ -199,6 +199,16 @@ function initSchema(db) {
       db.exec("ALTER TABLE catalog_items ADD COLUMN is_rewatching INTEGER DEFAULT 0;");
     }
 
+    const hasSeasonsCompleted = catInfo.some(col => col.name === 'seasons_completed');
+    if (!hasSeasonsCompleted) {
+      db.exec("ALTER TABLE catalog_items ADD COLUMN seasons_completed INTEGER DEFAULT 0;");
+    }
+
+    const hasTotalSeasons = catInfo.some(col => col.name === 'total_seasons');
+    if (!hasTotalSeasons) {
+      db.exec("ALTER TABLE catalog_items ADD COLUMN total_seasons INTEGER DEFAULT 1;");
+    }
+
     // Keep all anime inside Anime tab: fix any anime movies mistakenly saved as media_type = 'Movie'
     db.exec(`
       UPDATE cached_media SET media_type = 'Anime', format = 'Movie' 
@@ -259,6 +269,53 @@ function initSchema(db) {
           m.statusNote || null,
           m.sortOrder || 0
         );
+      }
+    }
+
+    // Synchronize cached_media total_seasons with media_seasons count if media_seasons has more
+    db.exec(`
+      UPDATE cached_media
+      SET total_seasons = (SELECT COUNT(*) FROM media_seasons WHERE canonical_id = cached_media.id)
+      WHERE id IN (
+        SELECT canonical_id FROM media_seasons GROUP BY canonical_id HAVING COUNT(*) > 1
+      ) AND total_seasons < (SELECT COUNT(*) FROM media_seasons WHERE canonical_id = cached_media.id);
+    `);
+
+    // Clean up redundant subsequent season records (e.g. "Title Season 2", "Title Season 3", "Title 2nd Season")
+    const SUBSEQUENT_SEASON_REGEX = /\s*[:\-–—]?\s*\b(?:Season\s+([2-9]|\d{2,})|[2-9]\d*(?:nd|rd|th)\s+Season|Final\s+Season|Season\s+Final|Cour\s+([2-9]|\d{2,}))\b.*/i;
+    const seasonNumExtractRegex = /\b(?:Season\s+([2-9]|\d{2,})|([2-9]\d*)(?:nd|rd|th)\s+Season|Cour\s+([2-9]|\d{2,}))\b/i;
+
+    const candidateSeasonRows = db.prepare(`
+      SELECT id, title, media_type, format, total_seasons 
+      FROM cached_media 
+      WHERE (format != 'Movie' AND media_type != 'Movie') 
+        AND (
+          title LIKE '%Season 2%' OR title LIKE '%Season 3%' OR title LIKE '%Season 4%' OR
+          title LIKE '%Season 5%' OR title LIKE '%Season 6%' OR title LIKE '%Season 7%' OR
+          title LIKE '%Season 8%' OR title LIKE '%Season 9%' OR title LIKE '%Season 10%' OR
+          title LIKE '%2nd Season%' OR title LIKE '%3rd Season%' OR title LIKE '%4th Season%' OR
+          title LIKE '%5th Season%' OR title LIKE '%Final Season%' OR title LIKE '%Cour 2%'
+        )
+    `).all();
+
+    for (const row of candidateSeasonRows) {
+      if (SUBSEQUENT_SEASON_REGEX.test(row.title)) {
+        const baseTitle = row.title.replace(SUBSEQUENT_SEASON_REGEX, '').trim();
+        const numMatch = row.title.match(seasonNumExtractRegex);
+        const extractedSeasonNum = numMatch ? parseInt(numMatch[1] || numMatch[2] || numMatch[3] || '2', 10) : 2;
+
+        if (baseTitle) {
+          const baseShow = db.prepare('SELECT id, title, total_seasons FROM cached_media WHERE LOWER(title) = ? OR LOWER(title) LIKE ? LIMIT 1').get(baseTitle.toLowerCase(), `${baseTitle.toLowerCase()}%`);
+          if (baseShow && baseShow.id !== row.id) {
+            db.prepare('UPDATE cached_media SET total_seasons = MAX(total_seasons, ?) WHERE id = ?').run(extractedSeasonNum, baseShow.id);
+            try {
+              remapDuplicateCanonicalMedia(baseShow.id, row.id);
+            } catch (e) {}
+            db.prepare('DELETE FROM cached_media WHERE id = ?').run(row.id);
+          } else {
+            db.prepare('UPDATE cached_media SET title = ?, total_seasons = MAX(total_seasons, ?) WHERE id = ?').run(baseTitle, extractedSeasonNum, row.id);
+          }
+        }
       }
     }
   } catch (e) {
@@ -327,8 +384,8 @@ export function saveCanonicalMedia(media) {
       creators_json = excluded.creators_json,
       cast_json = excluded.cast_json,
       related_json = excluded.related_json,
-      total_seasons = excluded.total_seasons,
-      total_episodes = excluded.total_episodes,
+      total_seasons = MAX(COALESCE(excluded.total_seasons, 1), COALESCE(cached_media.total_seasons, 1), (SELECT COUNT(*) FROM media_seasons WHERE canonical_id = cached_media.id)),
+      total_episodes = MAX(COALESCE(excluded.total_episodes, 0), COALESCE(cached_media.total_episodes, 0)),
       next_airing_episode = excluded.next_airing_episode,
       next_airing_at = excluded.next_airing_at,
       last_synced_at = excluded.last_synced_at
@@ -361,7 +418,7 @@ export function saveCanonicalMedia(media) {
     JSON.stringify(media.creators || []),
     JSON.stringify(media.cast || []),
     JSON.stringify(media.relatedMedia || []),
-    media.totalSeasons || 1,
+    Math.max(media.totalSeasons || 1, Array.isArray(media.seasons) ? media.seasons.length : 1),
     media.totalEpisodes || null,
     media.nextAiringEpisode || null,
     media.nextAiringAt || null,
@@ -619,8 +676,8 @@ function hydrateCanonicalMedia(db, row) {
     })(),
     relatedMedia,
     sources,
-    totalSeasons: row.total_seasons,
-    totalEpisodes: row.total_episodes,
+    totalSeasons: Math.max(row.total_seasons || 1, seasonsRows.length),
+    totalEpisodes: Math.max(row.total_episodes || 0, seasons.reduce((sum, s) => sum + (s.episodes?.length || s.episodeCount || 0), 0)) || null,
     nextAiringEpisode: row.next_airing_episode,
     nextAiringAt: row.next_airing_at,
     lastSyncedAt: row.last_synced_at,
@@ -702,6 +759,13 @@ export function deleteMediaSource(canonicalId, sourceId) {
   return getCanonicalMedia(canonicalId);
 }
 
+export function isSubsequentSeasonTitle(item) {
+  if (!item || !item.title) return false;
+  if (item.isMovie || item.format === 'Movie' || item.mediaType === 'Movie') return false;
+  const pattern = /\b(?:Season\s+([2-9]|\d{2,})|[2-9]\d*(?:nd|rd|th)\s+Season|Final\s+Season|Season\s+Final|Cour\s+([2-9]|\d{2,}))\b/i;
+  return pattern.test(item.title);
+}
+
 export function searchCachedMedia(query, opts = {}) {
   if (isNeon()) return neonDB.searchCachedMedia(query, opts.type || opts.mediaType);
   const { type = 'All', genre = 'All', sort = 'popularity_desc', limit = 24, page = 1, animeFormat = 'All', format = 'All', character = null, searchMode = 'all', mainCharOnly = false } = opts;
@@ -769,9 +833,16 @@ export function searchCachedMedia(query, opts = {}) {
       break;
   }
 
+  const excludeList = (typeof opts.excludeIds === 'string' ? opts.excludeIds.split(',') : Array.from(opts.excludeIds || [])).map(s => String(s).trim()).filter(Boolean);
+  if (excludeList.length > 0) {
+    const placeholders = excludeList.map(() => '?').join(',');
+    sql += ` AND id NOT IN (${placeholders})`;
+    params.push(...excludeList);
+  }
+
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
   const limitNum = Math.max(1, parseInt(limit, 10) || 24);
-  const offset = (pageNum - 1) * limitNum;
+  const offset = excludeList.length > 0 ? 0 : (pageNum - 1) * limitNum;
   sql += ' LIMIT ? OFFSET ?';
   params.push(limitNum, offset);
 
@@ -782,25 +853,35 @@ export function searchCachedMedia(query, opts = {}) {
     if (mainCharOnly) {
       results = results.filter(item => {
         return (item.cast || []).some(c => 
-          (c.character || '').toLowerCase().includes(targetChar) && 
+          ((c.character || '').toLowerCase().includes(targetChar) || (c.actor || '').toLowerCase().includes(targetChar)) && 
           (c.role === 'MAIN' || !c.role)
         );
       });
     }
 
     for (const item of results) {
-      const match = (item.cast || []).find(c => (c.character || '').toLowerCase().includes(targetChar));
+      const match = (item.cast || []).find(c => 
+        (c.character || '').toLowerCase().includes(targetChar) ||
+        (c.actor || '').toLowerCase().includes(targetChar)
+      );
       if (match) {
         item.matchedCharacter = {
-          name: match.character,
+          name: match.character || match.actor,
+          actor: match.actor || null,
           image: match.characterImage || match.actorImage || null,
+          role: match.role || 'MAIN'
+        };
+        item.matchedPerson = {
+          name: match.actor || match.character,
+          character: match.character,
+          image: match.actorImage || match.characterImage || null,
           role: match.role || 'MAIN'
         };
       }
     }
   }
 
-  return results;
+  return results.filter(item => !isSubsequentSeasonTitle(item));
 }
 
 export function remapDuplicateCanonicalMedia(primaryId, duplicateId) {
@@ -840,29 +921,36 @@ export function getCachedTrending(type = 'All', limit = 24, opts = {}) {
 
   switch (sort) {
     case 'rating_desc':
-      sql += ' ORDER BY rating DESC NULLS LAST, popularity_score DESC';
+      sql += ' ORDER BY rating DESC NULLS LAST, popularity_score DESC, id ASC';
       break;
     case 'release_desc':
     case 'year_desc':
-      sql += ' ORDER BY release_year DESC NULLS LAST, release_date DESC NULLS LAST';
+      sql += ' ORDER BY release_year DESC NULLS LAST, release_date DESC NULLS LAST, id ASC';
       break;
     case 'title_asc':
-      sql += ' ORDER BY title ASC';
+      sql += ' ORDER BY title ASC, id ASC';
       break;
     case 'popularity_desc':
     default:
-      sql += ' ORDER BY popularity_score DESC, rating DESC';
+      sql += ' ORDER BY popularity_score DESC, rating DESC, id ASC';
       break;
+  }
+
+  const excludeList = (typeof opts.excludeIds === 'string' ? opts.excludeIds.split(',') : Array.from(opts.excludeIds || [])).map(s => String(s).trim()).filter(Boolean);
+  if (excludeList.length > 0) {
+    const placeholders = excludeList.map(() => '?').join(',');
+    sql += ` AND id NOT IN (${placeholders})`;
+    params.push(...excludeList);
   }
 
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
   const limitNum = Math.max(1, parseInt(limit, 10) || 24);
-  const offset = (pageNum - 1) * limitNum;
+  const offset = excludeList.length > 0 ? 0 : (pageNum - 1) * limitNum;
   sql += ' LIMIT ? OFFSET ?';
   params.push(limitNum, offset);
 
   const rows = db.prepare(sql).all(...params);
-  return rows.map(r => hydrateCanonicalMedia(db, r));
+  return rows.map(r => hydrateCanonicalMedia(db, r)).filter(item => !isSubsequentSeasonTitle(item));
 }
 
 /**
@@ -923,31 +1011,38 @@ export function getCatalogItems(opts = {}) {
 
   switch (sort) {
     case 'rating_desc':
-      sql += ' ORDER BY user_rating DESC NULLS LAST, updated_at DESC';
+      sql += ' ORDER BY user_rating DESC NULLS LAST, updated_at DESC, id ASC';
       break;
     case 'title_asc':
-      sql += ' ORDER BY title ASC';
+      sql += ' ORDER BY title ASC, id ASC';
       break;
     case 'year_desc':
     case 'release_desc':
-      sql += ' ORDER BY release_year DESC NULLS LAST';
+      sql += ' ORDER BY release_year DESC NULLS LAST, id ASC';
       break;
     case 'progress_desc':
-      sql += ' ORDER BY current_episode DESC, updated_at DESC';
+      sql += ' ORDER BY current_episode DESC, updated_at DESC, id ASC';
       break;
     case 'popularity_desc':
-      sql += ' ORDER BY user_rating DESC NULLS LAST, updated_at DESC';
+      sql += ' ORDER BY user_rating DESC NULLS LAST, updated_at DESC, id ASC';
       break;
     case 'updated_desc':
     default:
-      sql += ' ORDER BY updated_at DESC';
+      sql += ' ORDER BY updated_at DESC, id ASC';
       break;
+  }
+
+  const excludeList = (typeof opts.excludeIds === 'string' ? opts.excludeIds.split(',') : Array.from(opts.excludeIds || [])).map(s => String(s).trim()).filter(Boolean);
+  if (excludeList.length > 0) {
+    const placeholders = excludeList.map(() => '?').join(',');
+    sql += ` AND id NOT IN (${placeholders}) AND (canonical_id IS NULL OR canonical_id NOT IN (${placeholders}))`;
+    params.push(...excludeList, ...excludeList);
   }
 
   if (page !== undefined && limit !== undefined) {
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, parseInt(limit, 10) || 24);
-    const offset = (pageNum - 1) * limitNum;
+    const offset = excludeList.length > 0 ? 0 : (pageNum - 1) * limitNum;
     sql += ' LIMIT ? OFFSET ?';
     params.push(limitNum, offset);
   }
@@ -983,7 +1078,7 @@ function hydrateCatalogItem(db, row) {
   const isMovie = row.format === 'Movie' || row.media_type === 'Movie';
   const format = row.format || (isMovie ? 'Movie' : 'Series');
 
-  const cached = row.canonical_id ? db.prepare('SELECT genres_json, cast_json FROM cached_media WHERE id = ?').get(row.canonical_id) : null;
+  const cached = row.canonical_id ? db.prepare('SELECT genres_json, cast_json, total_seasons FROM cached_media WHERE id = ?').get(row.canonical_id) : null;
   let genres = [];
   let cast = [];
   try {
@@ -1012,6 +1107,16 @@ function hydrateCatalogItem(db, row) {
     }));
   })();
 
+  const totalSeasons = Math.max(
+    row.total_seasons || 1,
+    cached?.totalSeasons || 1,
+    cached?.total_seasons || 1,
+    cached?.seasons?.length || 1
+  );
+  const seasonsCompleted = (row.seasons_completed !== null && row.seasons_completed !== undefined)
+    ? row.seasons_completed
+    : (row.user_status === 'Completed' ? totalSeasons : Math.max(0, (row.current_season || 1) - 1));
+
   return {
     id: row.id,
     canonicalId: row.canonical_id,
@@ -1026,7 +1131,9 @@ function hydrateCatalogItem(db, row) {
     isFavorite: Boolean(row.is_favorite),
     isRewatching: Boolean(row.is_rewatching),
     userRating: row.user_rating,
-    currentSeason: row.current_season,
+    currentSeason: row.current_season || 1,
+    seasonsCompleted,
+    totalSeasons,
     currentEpisode: row.current_episode,
     totalEpisodes: row.total_episodes,
     notes: row.notes,
@@ -1102,14 +1209,14 @@ export function upsertCatalogItem(item) {
   const stmt = db.prepare(`
     INSERT INTO catalog_items (
       id, canonical_id, media_type, format, title, poster_url, backdrop_url, release_year,
-      user_status, is_favorite, is_rewatching, user_rating, current_season, current_episode,
-      total_episodes, notes, tags_json, started_at, completed_at, last_watched_at,
-      created_at, updated_at
+      user_status, is_favorite, is_rewatching, user_rating, current_season, seasons_completed,
+      total_seasons, current_episode, total_episodes, notes, tags_json, started_at, completed_at,
+      last_watched_at, created_at, updated_at
     ) VALUES (
       ?, ?, ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?, ?,
-      ?, ?, ?, ?, ?, ?,
-      ?, ?
+      ?, ?, ?, ?, ?, ?, ?,
+      ?, ?, ?
     )
     ON CONFLICT(id) DO UPDATE SET
       media_type = excluded.media_type,
@@ -1119,6 +1226,8 @@ export function upsertCatalogItem(item) {
       is_rewatching = excluded.is_rewatching,
       user_rating = excluded.user_rating,
       current_season = excluded.current_season,
+      seasons_completed = excluded.seasons_completed,
+      total_seasons = COALESCE(excluded.total_seasons, catalog_items.total_seasons),
       current_episode = excluded.current_episode,
       total_episodes = COALESCE(excluded.total_episodes, catalog_items.total_episodes),
       notes = excluded.notes,
@@ -1135,6 +1244,16 @@ export function upsertCatalogItem(item) {
     ? (item.isRewatching ? 1 : 0)
     : (existing?.is_rewatching ? 1 : 0);
 
+  const cachedForAdd = item.canonicalId ? getCanonicalMedia(item.canonicalId) : null;
+  const totalSeasonsVal = Math.max(
+    item.totalSeasons || 1,
+    cachedForAdd?.totalSeasons || 1,
+    cachedForAdd?.seasons?.length || 1,
+    existing?.total_seasons || 1
+  );
+  const seasonsCompletedVal = item.seasonsCompleted !== undefined ? item.seasonsCompleted : (existing?.seasons_completed ?? 0);
+  const currentSeasonVal = item.currentSeason || (existing?.current_season || (seasonsCompletedVal > 0 ? seasonsCompletedVal + 1 : 1));
+
   stmt.run(
     id,
     item.canonicalId,
@@ -1148,7 +1267,9 @@ export function upsertCatalogItem(item) {
     item.isFavorite ? 1 : 0,
     isRewatchingVal,
     item.userRating !== undefined ? item.userRating : (existing?.user_rating || null),
-    item.currentSeason || (existing?.current_season || 1),
+    currentSeasonVal,
+    seasonsCompletedVal,
+    totalSeasonsVal,
     item.currentEpisode !== undefined ? item.currentEpisode : (existing?.current_episode || 0),
     item.totalEpisodes !== undefined ? item.totalEpisodes : (existing?.total_episodes || null),
     item.notes !== undefined ? item.notes : (existing?.notes || null),
@@ -1236,6 +1357,8 @@ export function batchSetSeasonProgress(catalogItemId, seasonNumber, episodeCount
     WHERE catalog_item_id = ? AND season_number = ?
   `);
 
+  const existing = db.prepare('SELECT seasons_completed FROM catalog_items WHERE id = ?').get(catalogItemId);
+
   if (isWatched) {
     for (let ep = 1; ep <= episodeCount; ep++) {
       insertStmt.run(catalogItemId, seasonNumber, ep, now);
@@ -1245,14 +1368,17 @@ export function batchSetSeasonProgress(catalogItemId, seasonNumber, episodeCount
       WHERE catalog_item_id = ? AND season_number = ? AND episode_number > ?
     `).run(catalogItemId, seasonNumber, episodeCount);
 
+    const newSeasonsCompleted = Math.max(existing?.seasons_completed || 0, seasonNumber);
+
     db.prepare(`
       UPDATE catalog_items
       SET current_season = ?,
+          seasons_completed = ?,
           current_episode = MAX(current_episode, ?),
           last_watched_at = ?,
           updated_at = ?
       WHERE id = ?
-    `).run(seasonNumber, episodeCount, now, now, catalogItemId);
+    `).run(seasonNumber, newSeasonsCompleted, episodeCount, now, now, catalogItemId);
   } else {
     deleteStmt.run(catalogItemId, seasonNumber);
 
@@ -1262,14 +1388,82 @@ export function batchSetSeasonProgress(catalogItemId, seasonNumber, episodeCount
       WHERE catalog_item_id = ? AND is_watched = 1
     `).get(catalogItemId);
 
+    let newSeasonsCompleted = existing?.seasons_completed || 0;
+    if (newSeasonsCompleted >= seasonNumber) {
+      newSeasonsCompleted = Math.max(0, seasonNumber - 1);
+    }
+
     db.prepare(`
       UPDATE catalog_items
       SET current_season = ?,
+          seasons_completed = ?,
           current_episode = ?,
           updated_at = ?
       WHERE id = ?
-    `).run(maxProg?.max_season || 1, maxProg?.max_ep || 0, now, catalogItemId);
+    `).run(maxProg?.max_season || 1, newSeasonsCompleted, maxProg?.max_ep || 0, now, catalogItemId);
   }
+
+  return getCatalogItem(catalogItemId);
+}
+
+export function setSeasonsCompleted(catalogItemId, seasonsCompleted, opts = {}) {
+  if (isNeon()) return neonDB.setSeasonsCompleted(catalogItemId, seasonsCompleted, opts);
+
+  const db = getDB();
+  const now = new Date().toISOString();
+  const existing = db.prepare('SELECT * FROM catalog_items WHERE id = ?').get(catalogItemId);
+  if (!existing) return null;
+
+  const count = Math.max(0, parseInt(seasonsCompleted, 10) || 0);
+  const cached = existing.canonical_id ? db.prepare('SELECT total_seasons FROM cached_media WHERE id = ?').get(existing.canonical_id) : null;
+  const seasonsRows = existing.canonical_id ? db.prepare('SELECT COUNT(*) as cnt FROM media_seasons WHERE canonical_id = ?').get(existing.canonical_id) : null;
+  const totalSeasons = Math.max(opts.totalSeasons || 0, existing.total_seasons || 0, cached?.total_seasons || 0, seasonsRows?.cnt || 0, 1);
+  const userStatus = opts.userStatus || existing.user_status;
+  const currentSeason = opts.currentSeason || (count < totalSeasons ? count + 1 : totalSeasons);
+
+  // Sync episodes if requested (defaults to true)
+  if (opts.syncEpisodes !== false) {
+    const canonicalId = existing.canonical_id;
+    const mediaSeasons = db.prepare('SELECT season_number, episode_count FROM media_seasons WHERE canonical_id = ? ORDER BY season_number ASC').all(canonicalId);
+
+    const insertProg = db.prepare(`
+      INSERT OR REPLACE INTO catalog_episode_progress (
+        catalog_item_id, season_number, episode_number, is_watched, watched_at
+      ) VALUES (?, ?, ?, 1, ?)
+    `);
+
+    if (mediaSeasons && mediaSeasons.length > 0) {
+      for (const s of mediaSeasons) {
+        if (s.season_number <= count) {
+          const epCount = s.episode_count || 1;
+          for (let ep = 1; ep <= epCount; ep++) {
+            insertProg.run(catalogItemId, s.season_number, ep, now);
+          }
+        } else {
+          db.prepare('DELETE FROM catalog_episode_progress WHERE catalog_item_id = ? AND season_number = ?').run(catalogItemId, s.season_number);
+        }
+      }
+    } else {
+      for (let s = 1; s <= count; s++) {
+        insertProg.run(catalogItemId, s, 1, now);
+      }
+      db.prepare('DELETE FROM catalog_episode_progress WHERE catalog_item_id = ? AND season_number > ?').run(catalogItemId, count);
+    }
+  }
+
+  const completedAt = (userStatus === 'Completed' && !existing.completed_at) ? now : (userStatus !== 'Completed' ? null : existing.completed_at);
+
+  db.prepare(`
+    UPDATE catalog_items
+    SET seasons_completed = ?,
+        current_season = ?,
+        total_seasons = MAX(total_seasons, ?),
+        user_status = ?,
+        completed_at = ?,
+        last_watched_at = ?,
+        updated_at = ?
+    WHERE id = ?
+  `).run(count, currentSeason, totalSeasons, userStatus, completedAt, now, now, catalogItemId);
 
   return getCatalogItem(catalogItemId);
 }

@@ -24,16 +24,18 @@ import {
   GLOBAL_SORT_OPTIONS
 } from '@omniwatch/shared';
 
-// Top popular lead characters for instant one-click filtering
-const POPULAR_MAIN_CHARACTERS = [
+// Top popular heroes, heroines and lead actors for instant one-click filtering
+const POPULAR_LEAD_CAST = [
+  { name: 'Andrew Garfield', label: '🕷️ Andrew Garfield' },
+  { name: 'Spider-Man', label: '🕸️ Spider-Man' },
+  { name: 'Walter White', label: '🧪 Walter White' },
+  { name: 'Cillian Murphy', label: '💣 Cillian Murphy' },
+  { name: 'Tom Cruise', label: '✈️ Tom Cruise' },
   { name: 'Luffy', label: '🏴‍☠️ Luffy' },
   { name: 'Eren Yeager', label: '⚔️ Eren' },
   { name: 'Frieren', label: '🧙‍♀️ Frieren' },
-  { name: 'Walter White', label: '🧪 Walter White' },
-  { name: 'Gojo Satoru', label: '⚡ Gojo' },
-  { name: 'Naruto', label: '🍥 Naruto' },
-  { name: 'Levi', label: '🗡️ Levi' },
-  { name: 'Anya Forger', label: '🥜 Anya' }
+  { name: 'Gojo', label: '⚡ Gojo' },
+  { name: 'Keanu Reeves', label: '🕶️ Keanu Reeves' },
 ];
 
 export default function FilterBar({
@@ -74,11 +76,11 @@ export default function FilterBar({
     }
   };
 
-  const hasAnyFilterActive = 
-    activeType !== 'All' || 
-    activeGenre !== 'All' || 
-    activeStatus !== 'All' || 
-    favoriteOnly || 
+  const hasAnyFilterActive =
+    activeType !== 'All' ||
+    activeGenre !== 'All' ||
+    activeStatus !== 'All' ||
+    favoriteOnly ||
     Boolean(activeCharacter) ||
     (activeType === 'Anime' && animeSubTab !== 'All');
 
@@ -86,7 +88,7 @@ export default function FilterBar({
     <div className="space-y-4 mb-6">
       {/* Top Filter Row: Media Types, Anime Sub-tabs & Discovery Modes */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        
+
         {/* Media Type Tabs & Anime Sub-tabs */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Main Media Type Tabs: All, Anime, Movie, Series */}
@@ -97,11 +99,10 @@ export default function FilterBar({
                 <button
                   key={type}
                   onClick={() => onTypeSelect(type)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                    isActive
-                      ? 'bg-red-600 text-white shadow-md shadow-red-950/50'
-                      : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
-                  }`}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${isActive
+                    ? 'bg-red-600 text-white shadow-md shadow-red-950/50'
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
+                    }`}
                 >
                   {type === 'Movie' ? 'Movies' : type}
                 </button>
@@ -127,11 +128,10 @@ export default function FilterBar({
                   <button
                     key={sub.id}
                     onClick={() => onAnimeSubTabChange && onAnimeSubTabChange(sub.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                      isSubActive
-                        ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-sm'
-                        : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
-                    }`}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${isSubActive
+                      ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-sm'
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
+                      }`}
                   >
                     {Icon && <Icon className="w-3.5 h-3.5" />}
                     <span>{sub.label}</span>
@@ -147,22 +147,20 @@ export default function FilterBar({
           <div className="flex items-center gap-2">
             <button
               onClick={() => onGlobalTabChange('trending')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all ${
-                globalTab === 'trending'
-                  ? 'bg-red-600/15 text-red-400 border-red-500/40 shadow-sm'
-                  : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:text-white'
-              }`}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all ${globalTab === 'trending'
+                ? 'bg-red-600/15 text-red-400 border-red-500/40 shadow-sm'
+                : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:text-white'
+                }`}
             >
               <Flame className="w-3.5 h-3.5 text-red-500" />
               <span>Trending Now</span>
             </button>
             <button
               onClick={() => onGlobalTabChange('upcoming')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all ${
-                globalTab === 'upcoming'
-                  ? 'bg-red-600/15 text-red-400 border-red-500/40 shadow-sm'
-                  : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:text-white'
-              }`}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all ${globalTab === 'upcoming'
+                ? 'bg-red-600/15 text-red-400 border-red-500/40 shadow-sm'
+                : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:text-white'
+                }`}
             >
               <Calendar className="w-3.5 h-3.5 text-amber-400" />
               <span>Upcoming Radar</span>
@@ -172,20 +170,18 @@ export default function FilterBar({
             {onToggleHideInCatalog && (
               <button
                 onClick={onToggleHideInCatalog}
-                className={`group flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all duration-200 shadow-sm ${
-                  hideInCatalog
-                    ? 'bg-emerald-950/40 text-emerald-200 border-emerald-500/40 hover:bg-emerald-900/40 shadow-emerald-950/20 ring-1 ring-emerald-500/20'
-                    : 'bg-zinc-900/70 text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-zinc-200'
-                }`}
+                className={`group flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all duration-200 shadow-sm ${hideInCatalog
+                  ? 'bg-emerald-950/40 text-emerald-200 border-emerald-500/40 hover:bg-emerald-900/40 shadow-emerald-950/20 ring-1 ring-emerald-500/20'
+                  : 'bg-zinc-900/70 text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-zinc-200'
+                  }`}
                 title={
                   hideInCatalog
                     ? `Currently hiding all ${totalSavedCount || hiddenCount} saved catalog titles from Global discovery. Click to reveal.`
                     : `Currently showing all titles including your ${totalSavedCount || hiddenCount} saved catalog titles. Click to hide saved.`
                 }
               >
-                <div className={`p-1 rounded-lg transition-colors ${
-                  hideInCatalog ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-500 group-hover:text-zinc-300'
-                }`}>
+                <div className={`p-1 rounded-lg transition-colors ${hideInCatalog ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-500 group-hover:text-zinc-300'
+                  }`}>
                   {hideInCatalog ? (
                     <EyeOff className="w-3.5 h-3.5" />
                   ) : (
@@ -195,23 +191,20 @@ export default function FilterBar({
                 <span>Hide Saved</span>
 
                 {/* Total Saved Count Badge */}
-                <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border transition-colors ${
-                  hideInCatalog
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                    : 'bg-zinc-800 text-zinc-400 border-zinc-700/60'
-                }`}>
+                <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border transition-colors ${hideInCatalog
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                  : 'bg-zinc-800 text-zinc-400 border-zinc-700/60'
+                  }`}>
                   {totalSavedCount !== undefined ? totalSavedCount : hiddenCount}
                 </span>
 
                 {/* Animated Micro Toggle Switch */}
                 <div
-                  className={`w-7 h-4 rounded-full flex items-center transition-colors p-0.5 ${
-                    hideInCatalog ? 'bg-emerald-500 justify-end shadow-sm shadow-emerald-500/50' : 'bg-zinc-800 justify-start border border-zinc-700'
-                  }`}
+                  className={`w-7 h-4 rounded-full flex items-center transition-colors p-0.5 ${hideInCatalog ? 'bg-emerald-500 justify-end shadow-sm shadow-emerald-500/50' : 'bg-zinc-800 justify-start border border-zinc-700'
+                    }`}
                 >
-                  <div className={`w-3 h-3 rounded-full transition-transform ${
-                    hideInCatalog ? 'bg-white shadow' : 'bg-zinc-400'
-                  }`} />
+                  <div className={`w-3 h-3 rounded-full transition-transform ${hideInCatalog ? 'bg-white shadow' : 'bg-zinc-400'
+                    }`} />
                 </div>
               </button>
             )}
@@ -221,11 +214,10 @@ export default function FilterBar({
             {/* Favorites filter toggle */}
             <button
               onClick={onToggleFavorite}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
-                favoriteOnly
-                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 shadow-md'
-                  : 'bg-zinc-900/70 text-zinc-400 border-zinc-800 hover:text-rose-400'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${favoriteOnly
+                ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 shadow-md'
+                : 'bg-zinc-900/70 text-zinc-400 border-zinc-800 hover:text-rose-400'
+                }`}
             >
               <Heart className={`w-3.5 h-3.5 ${favoriteOnly ? 'fill-rose-400 text-rose-400' : ''}`} />
               <span>Favorites Only</span>
@@ -243,11 +235,10 @@ export default function FilterBar({
               <button
                 key={status}
                 onClick={() => onStatusSelect(status)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border ${
-                  isSelected
-                    ? 'bg-zinc-800 text-emerald-400 border-emerald-500/40 shadow-md font-bold'
-                    : 'bg-zinc-950 text-zinc-400 border-zinc-800/80 hover:text-zinc-200 hover:bg-zinc-900'
-                }`}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border ${isSelected
+                  ? 'bg-zinc-800 text-emerald-400 border-emerald-500/40 shadow-md font-bold'
+                  : 'bg-zinc-950 text-zinc-400 border-zinc-800/80 hover:text-zinc-200 hover:bg-zinc-900'
+                  }`}
               >
                 {status}
               </button>
@@ -263,7 +254,7 @@ export default function FilterBar({
             <div className="p-1 rounded-lg bg-red-500/15 text-red-400 border border-red-500/30">
               <User className="w-3.5 h-3.5" />
             </div>
-            <span>Filter by Main Character:</span>
+            <span>Filter by Hero, Heroine or Casting:</span>
             {activeCharacter && (
               <span className="text-[11px] font-normal text-zinc-400">
                 (Showing titles starring <strong className="text-white">{activeCharacter}</strong>)
@@ -280,7 +271,7 @@ export default function FilterBar({
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-zinc-800/80 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700/60 transition-all"
               >
                 <Search className="w-3 h-3 text-red-400" />
-                <span>Search Custom Character...</span>
+                <span>Search Actor or Hero...</span>
               </button>
             ) : (
               <form onSubmit={handleCustomCharSubmit} className="flex items-center gap-1 animate-in fade-in zoom-in-95 duration-150">
@@ -289,8 +280,8 @@ export default function FilterBar({
                   autoFocus
                   value={charSearchInput}
                   onChange={(e) => setCharSearchInput(e.target.value)}
-                  placeholder="e.g. Tanjiro, Guts, Spike..."
-                  className="px-2.5 py-1 text-xs rounded-lg bg-zinc-950 border border-red-500/50 text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-red-500 w-44"
+                  placeholder="e.g. Andrew Garfield, Batman, Zendaya..."
+                  className="px-2.5 py-1 text-xs rounded-lg bg-zinc-950 border border-red-500/50 text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-red-500 w-52"
                 />
                 <button
                   type="submit"
@@ -312,7 +303,7 @@ export default function FilterBar({
 
         {/* Character Quick-Filter Chips */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none pt-0.5">
-          {POPULAR_MAIN_CHARACTERS.map((char) => {
+          {POPULAR_LEAD_CAST.map((char) => {
             const isSelected = activeCharacter.toLowerCase() === char.name.toLowerCase();
             return (
               <button
@@ -323,11 +314,10 @@ export default function FilterBar({
                     onCharacterSelect(isSelected ? '' : char.name);
                   }
                 }}
-                className={`flex items-center gap-1 px-3 py-1 rounded-xl text-xs font-bold transition-all whitespace-nowrap border shrink-0 ${
-                  isSelected
-                    ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white border-red-500 shadow-md shadow-red-950/40 ring-1 ring-red-400/40'
-                    : 'bg-zinc-950/80 hover:bg-zinc-800 text-zinc-300 hover:text-white border-zinc-800 hover:border-zinc-700'
-                }`}
+                className={`flex items-center gap-1 px-3 py-1 rounded-xl text-xs font-bold transition-all whitespace-nowrap border shrink-0 ${isSelected
+                  ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white border-red-500 shadow-md shadow-red-950/40 ring-1 ring-red-400/40'
+                  : 'bg-zinc-950/80 hover:bg-zinc-800 text-zinc-300 hover:text-white border-zinc-800 hover:border-zinc-700'
+                  }`}
               >
                 <span>{char.label}</span>
                 {isSelected && <X className="w-3 h-3 ml-0.5" />}
@@ -336,7 +326,7 @@ export default function FilterBar({
           })}
 
           {/* Active custom character pill if not in presets */}
-          {activeCharacter && !POPULAR_MAIN_CHARACTERS.some(c => c.name.toLowerCase() === activeCharacter.toLowerCase()) && (
+          {activeCharacter && !POPULAR_LEAD_CAST.some(c => c.name.toLowerCase() === activeCharacter.toLowerCase()) && (
             <button
               type="button"
               onClick={() => onCharacterSelect && onCharacterSelect('')}
@@ -354,7 +344,7 @@ export default function FilterBar({
               onClick={() => onCharacterSelect && onCharacterSelect('')}
               className="px-2 py-1 rounded-lg text-[11px] font-semibold text-zinc-400 hover:text-zinc-200 underline decoration-zinc-700 whitespace-nowrap shrink-0"
             >
-              Clear Character Filter
+              Clear Filter
             </button>
           )}
         </div>
@@ -437,7 +427,7 @@ export default function FilterBar({
       {/* Secondary Controls: Genre, Sort & Counter */}
       <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-zinc-800/50 text-xs">
         <div className="flex flex-wrap items-center gap-3">
-          
+
           {/* Genre Dropdown */}
           <div className="flex items-center gap-2">
             <span className="text-zinc-500 font-medium">Genre:</span>

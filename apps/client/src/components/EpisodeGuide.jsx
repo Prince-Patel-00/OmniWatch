@@ -7,7 +7,8 @@ import {
   Tv,
   Play,
   ExternalLink,
-  Download
+  Download,
+  Check
 } from 'lucide-react';
 
 export default function EpisodeGuide({
@@ -15,7 +16,9 @@ export default function EpisodeGuide({
   watchedEpisodes = [], // Array of { seasonNumber, episodeNumber }
   onToggleWatched,
   onBatchSeasonWatched,
-  isCatalogItem = false
+  isCatalogItem = false,
+  seasonsCompleted = 0,
+  onSetSeasonsCompleted = null
 }) {
   const [selectedSeasonIdx, setSelectedSeasonIdx] = useState(0);
 
@@ -42,12 +45,13 @@ export default function EpisodeGuide({
   const totalInSeason = episodes.length || currentSeason.episodeCount || 0;
   const watchedInSeason = episodes.filter((e) => isEpWatched(e.episodeNumber)).length;
   const progressPercent = totalInSeason > 0 ? Math.round((watchedInSeason / totalInSeason) * 100) : 0;
+  const isCurrentSeasonDone = seasonNum <= seasonsCompleted || (totalInSeason > 0 && watchedInSeason >= totalInSeason);
 
   return (
     <div className="space-y-4">
       {/* Season Selector Tabs */}
-      <div className="flex items-center justify-between gap-4 border-b border-zinc-800 pb-2">
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-3">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 sm:pb-0">
           {seasons.map((s, idx) => {
             const isSelected = idx === selectedSeasonIdx;
             const sEpisodes = s.episodes || [];
@@ -56,42 +60,80 @@ export default function EpisodeGuide({
                 (w) => w.seasonNumber === (s.seasonNumber || idx + 1) && w.episodeNumber === e.episodeNumber
               )
             ).length;
+            const sNum = s.seasonNumber || idx + 1;
+            const isSeasonDone = sNum <= seasonsCompleted || (sEpisodes.length > 0 && sWatched >= sEpisodes.length);
 
             return (
               <button
                 key={s.seasonNumber || idx}
                 onClick={() => setSelectedSeasonIdx(idx)}
-                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 border ${
+                className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 border ${
                   isSelected
                     ? 'bg-red-600 text-white border-red-500 shadow-md shadow-red-950/50'
                     : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200 hover:bg-zinc-800'
                 }`}
               >
-                <span>Season {s.seasonNumber || idx + 1}</span>
+                <span>Season {sNum}</span>
                 {s.episodeCount ? (
                   <span className="text-[11px] opacity-75 font-normal">
                     ({s.episodeCount} eps)
                   </span>
                 ) : null}
-                {sWatched > 0 && (
+                {isSeasonDone ? (
+                  <span className="flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-black border border-emerald-500/30">
+                    <Check className="w-2.5 h-2.5 stroke-[3]" />
+                  </span>
+                ) : sWatched > 0 ? (
                   <span className="w-2 h-2 rounded-full bg-emerald-400 ml-0.5" />
-                )}
+                ) : null}
               </button>
             );
           })}
         </div>
 
-        {/* Batch Season Mark All Action */}
-        {isCatalogItem && episodes.length > 0 && onBatchSeasonWatched && (
-          <button
-            onClick={() => onBatchSeasonWatched(seasonNum, episodes.length, watchedInSeason < totalInSeason)}
-            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 hover:border-zinc-700 transition-colors"
-          >
-            <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>{watchedInSeason === totalInSeason ? 'Unmark Season' : 'Mark Season All Watched'}</span>
-          </button>
-        )}
+        {/* Season Actions */}
+        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+          {onSetSeasonsCompleted && (
+            <button
+              onClick={() => onSetSeasonsCompleted(isCurrentSeasonDone ? seasonNum - 1 : seasonNum)}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-zinc-900 hover:bg-zinc-800 text-emerald-400 border border-zinc-800 hover:border-emerald-500/40 transition-colors"
+              title={`Mark all up to Season ${seasonNum} as completed`}
+            >
+              <Check className="w-3.5 h-3.5 stroke-[3]" />
+              <span>{isCurrentSeasonDone ? `Unmark S${seasonNum}` : `Mark S${seasonNum} Done`}</span>
+            </button>
+          )}
+
+          {/* Batch Season Mark All Episodes Action */}
+          {isCatalogItem && episodes.length > 0 && onBatchSeasonWatched && (
+            <button
+              onClick={() => onBatchSeasonWatched(seasonNum, episodes.length, watchedInSeason < totalInSeason)}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 hover:border-zinc-700 transition-colors"
+            >
+              <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{watchedInSeason === totalInSeason ? 'Unmark Episodes' : 'All Episodes Watched'}</span>
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Season Completion Ribbon */}
+      {isCurrentSeasonDone && (
+        <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-emerald-950/30 border border-emerald-500/30 text-emerald-300 text-xs font-bold">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>Season {seasonNum} Completed! (All episodes recorded as watched)</span>
+          </div>
+          {onSetSeasonsCompleted && (
+            <button
+              onClick={() => onSetSeasonsCompleted(Math.max(0, seasonNum - 1))}
+              className="text-[11px] text-zinc-400 hover:text-zinc-200 underline font-normal cursor-pointer"
+            >
+              Reset to S{seasonNum - 1}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Season Progress Bar */}
       {isCatalogItem && totalInSeason > 0 && (

@@ -7,7 +7,7 @@ const router = express.Router();
 // GET /api/global/trending
 router.get('/trending', async (req, res) => {
   try {
-    const { type = 'All', sort = 'popularity_desc', animeFormat = 'All', format = 'All', page = 1, limit = 24, genre = 'All', character = '' } = req.query;
+    const { type = 'All', sort = 'popularity_desc', animeFormat = 'All', format = 'All', page = 1, limit = 24, genre = 'All', character = '', excludeIds = '' } = req.query;
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 24));
     
@@ -21,7 +21,8 @@ router.get('/trending', async (req, res) => {
         animeFormat: animeFormat !== 'All' ? animeFormat : format,
         page: pageNum,
         limit: limitNum,
-        mainCharOnly: true
+        mainCharOnly: true,
+        excludeIds
       });
     } else {
       items = await orchestrator.getTrending({
@@ -30,7 +31,8 @@ router.get('/trending', async (req, res) => {
         animeFormat: animeFormat !== 'All' ? animeFormat : format,
         page: pageNum,
         limit: limitNum,
-        genre
+        genre,
+        excludeIds
       });
     }
 
@@ -40,7 +42,7 @@ router.get('/trending', async (req, res) => {
       count: items.length,
       page: pageNum,
       limit: limitNum,
-      hasMore: items.length > 0
+      hasMore: items.length >= limitNum
     });
   } catch (err) {
     console.error('Error fetching trending:', err);
@@ -51,7 +53,7 @@ router.get('/trending', async (req, res) => {
 // GET /api/global/upcoming
 router.get('/upcoming', async (req, res) => {
   try {
-    const { type = 'All', sort = 'release_desc', animeFormat = 'All', format = 'All', page = 1, limit = 24, genre = 'All' } = req.query;
+    const { type = 'All', sort = 'release_desc', animeFormat = 'All', format = 'All', page = 1, limit = 24, genre = 'All', excludeIds = '' } = req.query;
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 24));
     const items = await orchestrator.getUpcoming({
@@ -60,7 +62,8 @@ router.get('/upcoming', async (req, res) => {
       animeFormat: animeFormat !== 'All' ? animeFormat : format,
       page: pageNum,
       limit: limitNum,
-      genre
+      genre,
+      excludeIds
     });
     res.json({
       success: true,
@@ -68,7 +71,7 @@ router.get('/upcoming', async (req, res) => {
       count: items.length,
       page: pageNum,
       limit: limitNum,
-      hasMore: items.length > 0
+      hasMore: items.length >= limitNum
     });
   } catch (err) {
     console.error('Error fetching upcoming:', err);
@@ -79,7 +82,7 @@ router.get('/upcoming', async (req, res) => {
 // GET /api/global/search
 router.get('/search', async (req, res) => {
   try {
-    const { q = '', type = 'All', genre = 'All', year = null, sort = 'popularity_desc', animeFormat = 'All', format = 'All', page = 1, limit = 24, character = '', searchMode = 'all', mainCharOnly = false } = req.query;
+    const { q = '', type = 'All', genre = 'All', year = null, sort = 'popularity_desc', animeFormat = 'All', format = 'All', page = 1, limit = 24, character = '', searchMode = 'all', mainCharOnly = false, excludeIds = '' } = req.query;
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 24));
     const items = await orchestrator.search(q, {
@@ -92,7 +95,8 @@ router.get('/search', async (req, res) => {
       limit: limitNum,
       character,
       searchMode,
-      mainCharOnly: mainCharOnly === 'true' || mainCharOnly === true
+      mainCharOnly: mainCharOnly === 'true' || mainCharOnly === true,
+      excludeIds
     });
     res.json({
       success: true,

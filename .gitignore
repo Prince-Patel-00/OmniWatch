@@ -15,3 +15,5 @@ dist
 scratch/
 .vs/
 .neon
+.agent
+.gemini

@@ -34,6 +34,8 @@ export default function MediaCard({
   const isRewatching = catalogEntry?.isRewatching;
   const currentEp = catalogEntry?.currentEpisode || 0;
   const totalEp = catalogEntry?.totalEpisodes || media.totalEpisodes;
+  const seasonsCompleted = catalogEntry?.seasonsCompleted ?? 0;
+  const totalSeasons = catalogEntry?.totalSeasons || media.totalSeasons;
 
   return (
     <div
@@ -81,10 +83,30 @@ export default function MediaCard({
 
           {/* Catalog Tracking Status Pill or Default Not Started */}
           {userStatus ? (
-            <div className="flex items-center justify-between gap-1 px-2.5 py-1 rounded-lg bg-zinc-950/90 border border-emerald-500/30 backdrop-blur-md text-emerald-400 text-[11px] font-bold shadow-md">
+            <div className={`flex items-center justify-between gap-1 px-2.5 py-1 rounded-lg backdrop-blur-md text-[11px] font-bold shadow-md border ${
+              userStatus === 'Dropped'
+                ? 'bg-rose-950/90 border-rose-500/40 text-rose-300'
+                : userStatus === 'On Hold'
+                ? 'bg-blue-950/90 border-blue-500/40 text-blue-300'
+                : userStatus === 'Want to Watch'
+                ? 'bg-zinc-950/90 border-amber-500/40 text-amber-300'
+                : 'bg-zinc-950/90 border-emerald-500/30 text-emerald-400'
+            }`}>
               <div className="flex items-center gap-1 truncate">
-                <BookmarkCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span className="truncate">{userStatus}</span>
+                <BookmarkCheck className={`w-3.5 h-3.5 shrink-0 ${
+                  userStatus === 'Dropped' ? 'text-rose-400' : userStatus === 'On Hold' ? 'text-blue-400' : userStatus === 'Want to Watch' ? 'text-amber-400' : 'text-emerald-400'
+                }`} />
+                <span className="truncate">
+                  {userStatus === 'Dropped' && seasonsCompleted > 0
+                    ? `Dropped (after S${seasonsCompleted})`
+                    : userStatus === 'On Hold' && seasonsCompleted > 0
+                    ? `On Hold (S${seasonsCompleted} Done)`
+                    : userStatus === 'Want to Watch' && seasonsCompleted > 0
+                    ? `S${seasonsCompleted} Done • Next S${seasonsCompleted + 1}`
+                    : userStatus === 'Watching' && seasonsCompleted > 0
+                    ? `S${seasonsCompleted} Done • S${seasonsCompleted + 1}`
+                    : userStatus}
+                </span>
                 {isRewatching && (
                   <span className="ml-1 px-1.5 py-0.2 rounded bg-purple-950/90 text-purple-300 border border-purple-700/60 text-[9px] font-extrabold flex items-center gap-0.5 shrink-0" title="Rewatching">
                     <RotateCw className="w-2.5 h-2.5" />
@@ -92,9 +114,13 @@ export default function MediaCard({
                   </span>
                 )}
               </div>
-              {isEpisodic && totalEp && (
-                <span className="text-[10px] text-zinc-400 font-semibold shrink-0">
-                  {currentEp}/{totalEp}
+              {isEpisodic && (
+                <span className="text-[10px] text-zinc-300 font-semibold shrink-0">
+                  {seasonsCompleted > 0 && totalSeasons ? (
+                    `${seasonsCompleted}/${totalSeasons} Sns`
+                  ) : totalEp ? (
+                    `${currentEp}/${totalEp}`
+                  ) : null}
                 </span>
               )}
             </div>
@@ -131,6 +157,14 @@ export default function MediaCard({
             <span>{media.releaseYear || 'TBA'}</span>
             <span className="text-zinc-500">•</span>
             <span className="truncate">{media.studios?.[0] || media.networks?.[0] || media.status}</span>
+            {isEpisodic && (totalSeasons || seasonsCompleted > 0) && (
+              <>
+                <span className="text-zinc-500">•</span>
+                <span className="text-zinc-300 font-semibold shrink-0">
+                  {seasonsCompleted > 0 ? `${seasonsCompleted}/${totalSeasons || '?'} Sns Done` : `${totalSeasons} Sns`}
+                </span>
+              </>
+            )}
           </div>
 
           <h3 className="text-sm font-bold text-white group-hover:text-red-400 transition-colors line-clamp-1 mt-1 leading-snug" title={media.title}>
@@ -143,20 +177,46 @@ export default function MediaCard({
             </p>
           )}
 
-          {/* Lead / Main Characters Row */}
+          {/* Matched Actor / Hero Highlight or Lead Cast Row */}
           {(() => {
+            if (media.matchedPerson) {
+              const p = media.matchedPerson;
+              return (
+                <div className="flex items-center gap-1.5 mt-2 pt-1 border-t border-zinc-800/50 overflow-hidden">
+                  <span className="text-[9.5px] font-bold text-red-400 shrink-0 uppercase tracking-wider flex items-center gap-0.5">
+                    <User className="w-2.5 h-2.5 text-red-400" />
+                  </span>
+                  <span
+                    onClick={(e) => {
+                      if (onSelectCharacter) {
+                        e.stopPropagation();
+                        onSelectCharacter(p.name);
+                      }
+                    }}
+                    title={`Filter by actor: ${p.name}`}
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold max-w-[190px] truncate bg-red-950/60 border border-red-500/40 text-red-300 hover:text-white cursor-pointer"
+                  >
+                    {p.image && <img src={p.image} alt="" className="w-3.5 h-3.5 rounded-full object-cover shrink-0" />}
+                    <span className="truncate">{p.name}</span>
+                    {p.character && <span className="text-zinc-400 text-[9px] truncate font-normal">as {p.character}</span>}
+                  </span>
+                </div>
+              );
+            }
+
             const chars = media.mainCharacters || (media.cast || []).filter(c => c.role === 'MAIN');
             const displayList = (chars && chars.length > 0 ? chars : (media.cast || [])).slice(0, 2);
             if (!displayList || displayList.length === 0) return null;
             return (
               <div className="flex items-center gap-1.5 mt-2 pt-1 border-t border-zinc-800/50 overflow-hidden">
-                <span className="text-[9.5px] font-bold text-zinc-400 shrink-0 uppercase tracking-wider flex items-center gap-0.5" title="Main character(s)">
+                <span className="text-[9.5px] font-bold text-zinc-400 shrink-0 uppercase tracking-wider flex items-center gap-0.5" title="Lead cast / character(s)">
                   <User className="w-2.5 h-2.5 text-zinc-400" />
                 </span>
                 <div className="flex items-center gap-1.5 overflow-hidden">
                   {displayList.map((c, i) => {
-                    const cName = c.name || c.character;
+                    const cName = c.name || c.character || c.actor;
                     const cImg = c.image || c.characterImage || c.actorImage;
+                    const filterName = c.actor || c.character || cName;
                     if (!cName) return null;
                     return (
                       <span
@@ -164,10 +224,10 @@ export default function MediaCard({
                         onClick={(e) => {
                           if (onSelectCharacter) {
                             e.stopPropagation();
-                            onSelectCharacter(cName);
+                            onSelectCharacter(filterName);
                           }
                         }}
-                        title={`Filter by lead character: ${cName}`}
+                        title={`Filter by: ${cName}${c.actor ? ` (${c.actor})` : ''}`}
                         className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium max-w-[125px] truncate transition-colors ${
                           onSelectCharacter 
                             ? 'bg-zinc-800/90 hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/40 border border-zinc-700/60 text-zinc-300 cursor-pointer'

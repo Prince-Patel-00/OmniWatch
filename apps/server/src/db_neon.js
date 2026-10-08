@@ -146,6 +146,8 @@ export async function initDB() {
       is_rewatching INTEGER DEFAULT 0,
       user_rating DOUBLE PRECISION,
       current_season INTEGER DEFAULT 1,
+      seasons_completed INTEGER DEFAULT 0,
+      total_seasons INTEGER DEFAULT 1,
       current_episode INTEGER DEFAULT 0,
       total_episodes INTEGER,
       notes TEXT,
@@ -161,6 +163,14 @@ export async function initDB() {
   await sql`CREATE INDEX IF NOT EXISTS idx_catalog_status ON catalog_items(user_status);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_catalog_type ON catalog_items(media_type);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_catalog_canonical ON catalog_items(canonical_id);`;
+
+  try {
+    await sql`ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS seasons_completed INTEGER DEFAULT 0;`;
+    await sql`ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS total_seasons INTEGER DEFAULT 1;`;
+    await sql`ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS is_rewatching INTEGER DEFAULT 0;`;
+  } catch (err) {
+    // Columns might already exist
+  }
 
   await sql`
     CREATE TABLE IF NOT EXISTS catalog_episode_progress (
@@ -255,7 +265,7 @@ export async function saveCanonicalMedia(media) {
       ${JSON.stringify(media.networks || [])}, ${JSON.stringify(media.creators || [])},
       ${JSON.stringify(media.cast || [])}, ${JSON.stringify(media.related || [])},
       ${JSON.stringify(media.sources || [])}, ${media.format || (media.mediaType === 'Movie' ? 'Movie' : 'Series')},
-      ${media.totalSeasons || 1}, ${media.totalEpisodes || null}, ${media.nextAiringEpisode || null},
+      ${Math.max(media.totalSeasons || 1, Array.isArray(media.seasons) ? media.seasons.length : 1)}, ${media.totalEpisodes || null}, ${media.nextAiringEpisode || null},
       ${media.nextAiringAt || null}, ${now}, ${media.cacheTtlHours || 48}
     )
     ON CONFLICT (id) DO UPDATE SET
@@ -285,8 +295,8 @@ export async function saveCanonicalMedia(media) {
       related_json = EXCLUDED.related_json,
       sources_json = EXCLUDED.sources_json,
       format = EXCLUDED.format,
-      total_seasons = EXCLUDED.total_seasons,
-      total_episodes = EXCLUDED.total_episodes,
+      total_seasons = GREATEST(COALESCE(EXCLUDED.total_seasons, 1), COALESCE(cached_media.total_seasons, 1), (SELECT COUNT(*)::int FROM media_seasons WHERE canonical_id = cached_media.id)),
+      total_episodes = GREATEST(COALESCE(EXCLUDED.total_episodes, 0), COALESCE(cached_media.total_episodes, 0)),
       next_airing_episode = EXCLUDED.next_airing_episode,
       next_airing_at = EXCLUDED.next_airing_at,
       last_synced_at = EXCLUDED.last_synced_at,
@@ -373,14 +383,17 @@ export async function saveCanonicalMedia(media) {
   // Save watch providers
   if (Array.isArray(media.watchProviders)) {
     for (const wp of media.watchProviders) {
-      const wpid = `${media.id}_${wp.regionCode || 'US'}_${wp.providerName}_${wp.availabilityType}`;
+      const providerName = wp.providerName || wp.name || 'Stream Provider';
+      const regionCode = wp.regionCode || wp.region || 'US';
+      const availType = wp.availabilityType || wp.type || 'Subscription';
+      const wpid = `${media.id}_${regionCode}_${providerName}_${availType}`;
       await sql`
         INSERT INTO media_watch_providers (
           id, canonical_id, region_code, provider_name, provider_logo_url, availability_type, web_url, display_priority, last_verified_at
         ) VALUES (
-          ${wpid}, ${media.id}, ${wp.regionCode || 'US'}, ${wp.providerName},
-          ${wp.providerLogoUrl || null}, ${wp.availabilityType || 'Subscription'},
-          ${wp.webUrl || null}, ${wp.displayPriority || 10}, ${now}
+          ${wpid}, ${media.id}, ${regionCode}, ${providerName},
+          ${wp.providerLogoUrl || wp.logoUrl || null}, ${availType},
+          ${wp.webUrl || null}, ${wp.displayPriority || wp.priority || 10}, ${now}
         )
         ON CONFLICT (id) DO UPDATE SET
           provider_logo_url = EXCLUDED.provider_logo_url,
@@ -421,7 +434,9 @@ export async function getCanonicalMedia(id) {
   const mergedSources = [
     ...baseSources,
     ...userSources.map(us => ({
+      id: us.id,
       name: us.name,
+      sourceName: us.name,
       url: us.url,
       type: 'Custom Source',
       quality: us.quality || 'HD',
@@ -457,8 +472,8 @@ export async function getCanonicalMedia(id) {
     cast: JSON.parse(item.cast_json || '[]'),
     related: JSON.parse(item.related_json || '[]'),
     sources: mergedSources,
-    totalSeasons: item.total_seasons,
-    totalEpisodes: item.total_episodes,
+    totalSeasons: Math.max(item.total_seasons || 1, seasons.length),
+    totalEpisodes: Math.max(item.total_episodes || 0, episodes.length) || null,
     nextAiringEpisode: item.next_airing_episode,
     nextAiringAt: item.next_airing_at,
     providerMappings,
@@ -502,18 +517,25 @@ export async function getCanonicalMedia(id) {
 
 export async function addMediaSource(canonicalId, source) {
   const sql = getSql();
-  const id = `src_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const id = source.id || `src_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const name = source.sourceName || source.name || 'Custom Mirror';
   await sql`
     INSERT INTO user_sources (id, canonical_id, name, url, quality, language)
-    VALUES (${id}, ${canonicalId}, ${source.name}, ${source.url}, ${source.quality || 'HD'}, ${source.language || 'Original'});
+    VALUES (${id}, ${canonicalId}, ${name}, ${source.url}, ${source.quality || 'HD'}, ${source.audio || source.language || 'Original'});
   `;
-  return { id, canonicalId, ...source };
+  return getCanonicalMedia(canonicalId);
 }
 
 export async function deleteMediaSource(canonicalId, sourceId) {
   const sql = getSql();
   await sql`DELETE FROM user_sources WHERE canonical_id = ${canonicalId} AND id = ${sourceId};`;
-  return { success: true };
+  return getCanonicalMedia(canonicalId);
+}
+export function isSubsequentSeasonTitle(item) {
+  if (!item || !item.title) return false;
+  if (item.isMovie || item.format === 'Movie' || item.mediaType === 'Movie') return false;
+  const pattern = /\b(?:Season\s+([2-9]|\d{2,})|[2-9]\d*(?:nd|rd|th)\s+Season|Final\s+Season|Season\s+Final|Cour\s+([2-9]|\d{2,}))\b/i;
+  return pattern.test(item.title);
 }
 
 export async function searchCachedMedia(query, mediaType) {
@@ -542,7 +564,7 @@ export async function searchCachedMedia(query, mediaType) {
   }
 
   // Filter in-memory matching tokens across titles
-  return rows.filter(item => {
+  return rows.filter(item => !isSubsequentSeasonTitle(item)).filter(item => {
     const combined = `${item.title} ${item.original_title || ''} ${item.romaji_title || ''} ${item.slug || ''}`.toLowerCase();
     return tokens.every(token => combined.includes(token));
   }).map(row => ({
@@ -575,12 +597,15 @@ export async function remapDuplicateCanonicalMedia(primaryId, duplicateId) {
       WHERE canonical_id = ${duplicateId};
     `;
 
-    await sql`
-      UPDATE media_provider_mappings
-      SET canonical_id = ${primaryId}
-      WHERE canonical_id = ${duplicateId}
-      ON CONFLICT DO NOTHING;
-    `;
+    try {
+      await sql`
+        UPDATE media_provider_mappings
+        SET canonical_id = ${primaryId}
+        WHERE canonical_id = ${duplicateId};
+      `;
+    } catch (e) {
+      await sql`DELETE FROM media_provider_mappings WHERE canonical_id = ${duplicateId};`;
+    }
 
     await sql`DELETE FROM cached_media WHERE id = ${duplicateId};`;
     console.log(`[Neon Postgres] Remapped duplicate canonical media: ${duplicateId} -> ${primaryId}`);
@@ -589,17 +614,21 @@ export async function remapDuplicateCanonicalMedia(primaryId, duplicateId) {
   }
 }
 
-export async function getCachedTrending({ type = 'All', animeFormat = 'All', limit = 24, offset = 0, genre = 'All', sort = 'popularity_desc' }) {
+export async function getCachedTrending({ type = 'All', animeFormat = 'All', limit = 24, offset, page = 1, genre = 'All', sort = 'popularity_desc', excludeIds = '' } = {}) {
   const sql = getSql();
   const rows = await sql`
     SELECT * FROM cached_media
     ORDER BY popularity_score DESC
-    LIMIT 100;
+    LIMIT 500;
   `;
 
-  let filtered = rows;
+  let filtered = rows.filter(i => !isSubsequentSeasonTitle(i));
   if (type !== 'All') {
-    filtered = filtered.filter(i => i.media_type === type);
+    if (type === 'Movie') {
+      filtered = filtered.filter(i => i.media_type === 'Movie' || i.format === 'Movie');
+    } else {
+      filtered = filtered.filter(i => i.media_type === type);
+    }
   }
   if (type === 'Anime' && animeFormat !== 'All') {
     filtered = filtered.filter(i => (i.format || 'Series') === animeFormat);
@@ -615,7 +644,17 @@ export async function getCachedTrending({ type = 'All', animeFormat = 'All', lim
     });
   }
 
-  return filtered.slice(offset, offset + limit).map(row => ({
+  const excludeList = (typeof excludeIds === 'string' ? excludeIds.split(',') : Array.from(excludeIds || [])).map(s => String(s).trim()).filter(Boolean);
+  if (excludeList.length > 0) {
+    const excludeSet = new Set(excludeList);
+    filtered = filtered.filter(i => !excludeSet.has(i.id));
+  }
+
+  const limitNum = Math.max(1, parseInt(limit, 10) || 24);
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const offsetNum = offset !== undefined ? offset : (pageNum - 1) * limitNum;
+
+  return filtered.slice(offsetNum, offsetNum + limitNum).map(row => ({
     id: row.id,
     mediaType: row.media_type,
     format: row.format || (row.media_type === 'Movie' ? 'Movie' : 'Series'),
@@ -683,32 +722,41 @@ export async function getCatalogItems(filters = {}) {
   });
 
   const offset = (Math.max(1, page) - 1) * limit;
-  return filtered.slice(offset, offset + limit).map(row => ({
-    id: row.id,
-    canonicalId: row.canonical_id,
-    mediaType: row.media_type,
-    format: row.format || (row.media_type === 'Movie' ? 'Movie' : 'Series'),
-    title: row.title,
-    posterUrl: row.poster_url,
-    backdropUrl: row.backdrop_url,
-    releaseYear: row.release_year,
-    userStatus: row.user_status,
-    isFavorite: Boolean(row.is_favorite),
-    isRewatching: Boolean(row.is_rewatching),
-    userRating: row.user_rating,
-    currentSeason: row.current_season,
-    currentEpisode: row.current_episode,
-    totalEpisodes: row.total_episodes || row.canonical_total_episodes,
-    notes: row.notes,
-    tags: JSON.parse(row.tags_json || '[]'),
-    startedAt: row.started_at,
-    completedAt: row.completed_at,
-    lastWatchedAt: row.last_watched_at,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    genres: JSON.parse(row.genres_json || '[]'),
-    synopsis: row.synopsis
-  }));
+  return filtered.slice(offset, offset + limit).map(row => {
+    const totalSeasons = Math.max(row.total_seasons || 1, row.canonical_total_seasons || 1);
+    const seasonsCompleted = (row.seasons_completed !== null && row.seasons_completed !== undefined)
+      ? row.seasons_completed
+      : (row.user_status === 'Completed' ? totalSeasons : Math.max(0, (row.current_season || 1) - 1));
+
+    return {
+      id: row.id,
+      canonicalId: row.canonical_id,
+      mediaType: row.media_type,
+      format: row.format || (row.media_type === 'Movie' ? 'Movie' : 'Series'),
+      title: row.title,
+      posterUrl: row.poster_url,
+      backdropUrl: row.backdrop_url,
+      releaseYear: row.release_year,
+      userStatus: row.user_status,
+      isFavorite: Boolean(row.is_favorite),
+      isRewatching: Boolean(row.is_rewatching),
+      userRating: row.user_rating,
+      currentSeason: row.current_season || 1,
+      seasonsCompleted,
+      totalSeasons,
+      currentEpisode: row.current_episode,
+      totalEpisodes: row.total_episodes || row.canonical_total_episodes,
+      notes: row.notes,
+      tags: JSON.parse(row.tags_json || '[]'),
+      startedAt: row.started_at,
+      completedAt: row.completed_at,
+      lastWatchedAt: row.last_watched_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      genres: JSON.parse(row.genres_json || '[]'),
+      synopsis: row.synopsis
+    };
+  });
 }
 
 export async function getCatalogItem(id) {
@@ -736,7 +784,9 @@ export async function getCatalogItem(id) {
     isFavorite: Boolean(item.is_favorite),
     isRewatching: Boolean(item.is_rewatching),
     userRating: item.user_rating,
-    currentSeason: item.current_season,
+    currentSeason: item.current_season || 1,
+    seasonsCompleted: item.seasons_completed ?? (item.user_status === 'Completed' ? (item.total_seasons || 1) : Math.max(0, (item.current_season || 1) - 1)),
+    totalSeasons: item.total_seasons || 1,
     currentEpisode: item.current_episode,
     totalEpisodes: item.total_episodes,
     notes: item.notes,
@@ -763,18 +813,22 @@ export async function upsertCatalogItem(item) {
   const id = item.id || `cat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const now = new Date().toISOString();
 
+  const totalSeasonsVal = item.totalSeasons !== undefined ? item.totalSeasons : 1;
+  const seasonsCompletedVal = item.seasonsCompleted !== undefined ? item.seasonsCompleted : 0;
+  const currentSeasonVal = item.currentSeason || (seasonsCompletedVal > 0 ? seasonsCompletedVal + 1 : 1);
+
   await sql`
     INSERT INTO catalog_items (
       id, canonical_id, media_type, format, title, poster_url, backdrop_url,
       release_year, user_status, is_favorite, is_rewatching, user_rating,
-      current_season, current_episode, total_episodes, notes, tags_json,
+      current_season, seasons_completed, total_seasons, current_episode, total_episodes, notes, tags_json,
       started_at, completed_at, last_watched_at, updated_at
     ) VALUES (
       ${id}, ${item.canonicalId || id}, ${item.mediaType}, ${item.format || 'Series'},
       ${item.title}, ${item.posterUrl || null}, ${item.backdropUrl || null},
       ${item.releaseYear || null}, ${item.userStatus || 'Want to Watch'},
       ${item.isFavorite ? 1 : 0}, ${item.isRewatching ? 1 : 0}, ${item.userRating || null},
-      ${item.currentSeason || 1}, ${item.currentEpisode || 0}, ${item.totalEpisodes || null},
+      ${currentSeasonVal}, ${seasonsCompletedVal}, ${totalSeasonsVal}, ${item.currentEpisode || 0}, ${item.totalEpisodes || null},
       ${item.notes || null}, ${JSON.stringify(item.tags || [])},
       ${item.startedAt || null}, ${item.completedAt || null}, ${item.lastWatchedAt || null},
       ${now}
@@ -785,6 +839,8 @@ export async function upsertCatalogItem(item) {
       is_rewatching = EXCLUDED.is_rewatching,
       user_rating = EXCLUDED.user_rating,
       current_season = EXCLUDED.current_season,
+      seasons_completed = EXCLUDED.seasons_completed,
+      total_seasons = COALESCE(EXCLUDED.total_seasons, catalog_items.total_seasons),
       current_episode = EXCLUDED.current_episode,
       notes = EXCLUDED.notes,
       tags_json = EXCLUDED.tags_json,
@@ -795,6 +851,34 @@ export async function upsertCatalogItem(item) {
   `;
 
   return getCatalogItem(id);
+}
+
+export async function setSeasonsCompleted(catalogItemId, seasonsCompleted, opts = {}) {
+  const sql = getSql();
+  const now = new Date().toISOString();
+  const existing = await getCatalogItem(catalogItemId);
+  if (!existing) return null;
+
+  const count = Math.max(0, parseInt(seasonsCompleted, 10) || 0);
+  const totalSeasons = opts.totalSeasons || existing.totalSeasons || 1;
+  const userStatus = opts.userStatus || existing.userStatus;
+  const currentSeason = opts.currentSeason || (count < totalSeasons ? count + 1 : totalSeasons);
+
+  const completedAt = (userStatus === 'Completed' && !existing.completedAt) ? now : (userStatus !== 'Completed' ? null : existing.completedAt);
+
+  await sql`
+    UPDATE catalog_items
+    SET seasons_completed = ${count},
+        current_season = ${currentSeason},
+        total_seasons = GREATEST(total_seasons, ${totalSeasons}),
+        user_status = ${userStatus},
+        completed_at = ${completedAt},
+        last_watched_at = ${now},
+        updated_at = ${now}
+    WHERE id = ${catalogItemId};
+  `;
+
+  return getCatalogItem(catalogItemId);
 }
 
 export async function deleteCatalogItem(id) {
@@ -815,21 +899,29 @@ export async function toggleEpisodeProgress(catalogItemId, seasonNumber, episode
         is_watched = 1,
         watched_at = EXCLUDED.watched_at;
     `;
+
+    await sql`
+      UPDATE catalog_items
+      SET current_season = GREATEST(COALESCE(current_season, 1), ${seasonNumber}),
+          current_episode = GREATEST(COALESCE(current_episode, 0), ${episodeNumber}),
+          last_watched_at = ${now},
+          updated_at = ${now}
+      WHERE id = ${catalogItemId};
+    `;
   } else {
     await sql`
       DELETE FROM catalog_episode_progress
       WHERE catalog_item_id = ${catalogItemId} AND season_number = ${seasonNumber} AND episode_number = ${episodeNumber};
     `;
+
+    await sql`
+      UPDATE catalog_items
+      SET last_watched_at = ${now}, updated_at = ${now}
+      WHERE id = ${catalogItemId};
+    `;
   }
 
-  // Update last_watched_at on catalog item
-  await sql`
-    UPDATE catalog_items
-    SET last_watched_at = ${now}, updated_at = ${now}
-    WHERE id = ${catalogItemId};
-  `;
-
-  return { success: true, catalogItemId, seasonNumber, episodeNumber, isWatched };
+  return getCatalogItem(catalogItemId);
 }
 
 export async function batchSetSeasonProgress(catalogItemId, seasonNumber, episodes, isWatched) {
@@ -1028,19 +1120,32 @@ export async function getDistinctCharacters({ limit = 25 } = {}) {
             name: charName,
             image: c.characterImage || c.actorImage || row.poster_url || null,
             role: c.role || 'MAIN',
+            appearances: 1,
             count: 1,
-            titles: [row.title]
+            titles: [row.title],
+            mediaTitles: [row.title],
+            actor: c.actor || null
           });
         } else {
           const entry = charMap.get(key);
+          entry.appearances += 1;
           entry.count += 1;
+          if (!entry.image && (c.characterImage || c.actorImage)) {
+            entry.image = c.characterImage || c.actorImage;
+          }
+          if (!entry.titles.includes(row.title) && entry.titles.length < 3) {
+            entry.titles.push(row.title);
+          }
+          if (!entry.mediaTitles.includes(row.title) && entry.mediaTitles.length < 3) {
+            entry.mediaTitles.push(row.title);
+          }
         }
       }
     } catch (e) {}
   }
 
   return Array.from(charMap.values())
-    .sort((a, b) => b.count - a.count)
+    .sort((a, b) => b.appearances - a.appearances)
     .slice(0, limit);
 }
 
@@ -1067,18 +1172,31 @@ export async function getCatalogCharacters({ limit = 25 } = {}) {
             name: charName,
             image: c.characterImage || c.actorImage || row.poster_url || null,
             role: c.role || 'MAIN',
+            appearances: 1,
             count: 1,
-            titles: [row.title]
+            titles: [row.title],
+            mediaTitles: [row.title],
+            actor: c.actor || null
           });
         } else {
           const entry = charMap.get(key);
+          entry.appearances += 1;
           entry.count += 1;
+          if (!entry.image && (c.characterImage || c.actorImage)) {
+            entry.image = c.characterImage || c.actorImage;
+          }
+          if (!entry.titles.includes(row.title) && entry.titles.length < 3) {
+            entry.titles.push(row.title);
+          }
+          if (!entry.mediaTitles.includes(row.title) && entry.mediaTitles.length < 3) {
+            entry.mediaTitles.push(row.title);
+          }
         }
       }
     } catch (e) {}
   }
 
   return Array.from(charMap.values())
-    .sort((a, b) => b.count - a.count)
+    .sort((a, b) => b.appearances - a.appearances)
     .slice(0, limit);
 }

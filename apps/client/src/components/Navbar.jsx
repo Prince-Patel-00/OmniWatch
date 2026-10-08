@@ -47,9 +47,9 @@ export default function Navbar({
 
   const getPlaceholder = () => {
     if (activeCharacter) return `Filtering by "${activeCharacter}"...`;
-    if (searchMode === 'character') return "Search by main character (e.g. Luffy, Eren, Walter White)...";
+    if (searchMode === 'character') return "Search hero, heroine, actor or cast (e.g. Andrew Garfield, Spider-Man)...";
     if (searchMode === 'title') return "Search by title name... ('/' to focus)";
-    return "Search anime, movies, series or lead characters... ('/' to focus)";
+    return "Search movies, series, anime, actors or hero casting... ('/' to focus)";
   };
 
   return (
@@ -76,7 +76,7 @@ export default function Navbar({
                 </span>
               </div>
               <p className="text-[10px] text-zinc-400 font-medium hidden md:block">
-                Entertainment & Character Explorer
+                Entertainment & Casting Explorer
               </p>
             </div>
           </div>
@@ -154,18 +154,20 @@ export default function Navbar({
                   ) : (
                     <Search className="w-3.5 h-3.5 text-zinc-400" />
                   )}
-                  <span className="capitalize hidden sm:inline">{searchMode}</span>
+                  <span className="hidden sm:inline">
+                    {searchMode === 'character' ? 'Hero / Cast' : (searchMode === 'title' ? 'Title' : 'All')}
+                  </span>
                 </button>
 
                 {/* Mode Selector Popover */}
                 {showModeMenu && (
-                  <div className="absolute top-full left-0 mt-1.5 w-36 bg-zinc-900 border border-zinc-700/80 rounded-xl shadow-2xl py-1 z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="absolute top-full left-0 mt-1.5 w-40 bg-zinc-900 border border-zinc-700/80 rounded-xl shadow-2xl py-1 z-50 animate-in fade-in zoom-in-95 duration-150">
                     <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
                       Search Scope
                     </div>
                     {[
-                      { id: 'all', label: 'All Fields', icon: Sparkles },
-                      { id: 'character', label: 'Main Character', icon: User },
+                      { id: 'all', label: 'All Sources', icon: Sparkles },
+                      { id: 'character', label: 'Hero / Cast', icon: User },
                       { id: 'title', label: 'Title Only', icon: Film }
                     ].map((mode) => {
                       const Icon = mode.icon;

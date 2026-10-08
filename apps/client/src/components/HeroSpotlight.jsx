@@ -125,11 +125,11 @@ export default function HeroSpotlight({
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <span className="text-xs font-bold text-zinc-400 flex items-center gap-1.5 uppercase tracking-wider text-[11px]">
                   <User className="w-3.5 h-3.5 text-red-400" />
-                  Lead Characters:
+                  Lead Cast & Heroes:
                 </span>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {displayList.map((c, i) => {
-                    const cName = c.name || c.character;
+                    const cName = c.actor || c.name || c.character;
                     const cImg = c.image || c.characterImage || c.actorImage;
                     if (!cName) return null;
                     return (

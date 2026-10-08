@@ -11,7 +11,7 @@ const BASE_SYSTEM = '/api/system';
 // Global Discovery API
 // -------------------------------------------------------------
 
-export async function getTrendingMedia(type = 'All', sort = 'popularity_desc', animeFormat = 'All', page = 1, limit = 24, genre = 'All', character = '') {
+export async function getTrendingMedia(type = 'All', sort = 'popularity_desc', animeFormat = 'All', page = 1, limit = 24, genre = 'All', character = '', excludeIds = '') {
   const q = new URLSearchParams();
   if (type && type !== 'All') q.set('type', type);
   if (sort) q.set('sort', sort);
@@ -20,12 +20,13 @@ export async function getTrendingMedia(type = 'All', sort = 'popularity_desc', a
   if (character && character.trim()) q.set('character', character.trim());
   if (page) q.set('page', page);
   if (limit) q.set('limit', limit);
+  if (excludeIds) q.set('excludeIds', excludeIds);
   const res = await fetch(`${BASE_GLOBAL}/trending?${q.toString()}`);
   if (!res.ok) throw new Error(`Failed to fetch trending media: ${res.statusText}`);
   return res.json();
 }
 
-export async function getUpcomingMedia(type = 'All', sort = 'release_desc', animeFormat = 'All', page = 1, limit = 24, genre = 'All') {
+export async function getUpcomingMedia(type = 'All', sort = 'release_desc', animeFormat = 'All', page = 1, limit = 24, genre = 'All', excludeIds = '') {
   const q = new URLSearchParams();
   if (type && type !== 'All') q.set('type', type);
   if (sort) q.set('sort', sort);
@@ -33,6 +34,7 @@ export async function getUpcomingMedia(type = 'All', sort = 'release_desc', anim
   if (genre && genre !== 'All') q.set('genre', genre);
   if (page) q.set('page', page);
   if (limit) q.set('limit', limit);
+  if (excludeIds) q.set('excludeIds', excludeIds);
   const res = await fetch(`${BASE_GLOBAL}/upcoming?${q.toString()}`);
   if (!res.ok) throw new Error(`Failed to fetch upcoming media: ${res.statusText}`);
   return res.json();
@@ -53,6 +55,7 @@ export async function searchGlobalMedia(query, params = {}) {
   }
   if (params.page) q.set('page', params.page);
   if (params.limit) q.set('limit', params.limit);
+  if (params.excludeIds) q.set('excludeIds', params.excludeIds);
 
   const res = await fetch(`${BASE_GLOBAL}/search?${q.toString()}`);
   if (!res.ok) throw new Error(`Failed to search media: ${res.statusText}`);
@@ -119,6 +122,7 @@ export async function getCatalog(params = {}) {
   }
   if (params.page) q.set('page', params.page);
   if (params.limit) q.set('limit', params.limit);
+  if (params.excludeIds) q.set('excludeIds', params.excludeIds);
 
   const res = await fetch(`${BASE_CATALOG}?${q.toString()}`);
   if (!res.ok) throw new Error(`Failed to load personal catalog: ${res.statusText}`);
@@ -190,6 +194,16 @@ export async function batchSeasonProgress(catalogItemId, { seasonNumber = 1, epi
     body: JSON.stringify({ seasonNumber, episodeCount, isWatched })
   });
   if (!res.ok) throw new Error(`Failed to update season progress`);
+  return res.json();
+}
+
+export async function updateSeasonsCompleted(catalogItemId, { seasonsCompleted, userStatus, syncEpisodes = true, currentSeason, totalSeasons }) {
+  const res = await fetch(`${BASE_CATALOG}/${encodeURIComponent(catalogItemId)}/seasons`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ seasonsCompleted, userStatus, syncEpisodes, currentSeason, totalSeasons })
+  });
+  if (!res.ok) throw new Error(`Failed to update completed seasons`);
   return res.json();
 }
 

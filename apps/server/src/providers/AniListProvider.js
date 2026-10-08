@@ -219,7 +219,10 @@ export class AniListProvider extends BaseProvider {
         image: cast.find(c => c.role === 'MAIN').characterImage,
         role: 'MAIN'
       } : null),
-      totalSeasons: isMovie ? 1 : 1,
+      totalSeasons: isMovie ? 1 : Math.max(
+        1,
+        1 + (alItem.relations?.edges || []).filter(e => e.relationType === 'PREQUEL' || e.relationType === 'SEQUEL').length
+      ),
       totalEpisodes: alItem.episodes || null,
       nextAiringEpisode: alItem.nextAiringEpisode?.episode || null,
       nextAiringAt,

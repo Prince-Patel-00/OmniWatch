@@ -7,6 +7,7 @@ import {
   deleteCatalogItem,
   toggleEpisodeProgress,
   batchSetSeasonProgress,
+  setSeasonsCompleted,
   getCatalogStats,
   exportCatalogData,
   importCatalogData,
@@ -19,7 +20,7 @@ const router = express.Router();
 // GET /api/catalog
 router.get('/', async (req, res) => {
   try {
-    const { status, type, sort, favorite, search, genre, animeFormat, format, character, page, limit } = req.query;
+    const { status, type, sort, favorite, search, genre, animeFormat, format, character, page, limit, excludeIds = '' } = req.query;
     const pageNum = page ? Math.max(1, parseInt(page, 10) || 1) : undefined;
     const limitNum = limit ? Math.max(1, Math.min(100, parseInt(limit, 10) || 24)) : undefined;
 
@@ -33,7 +34,8 @@ router.get('/', async (req, res) => {
       genre: genre || 'All',
       animeFormat: animeFormat || format || 'All',
       page: pageNum,
-      limit: limitNum
+      limit: limitNum,
+      excludeIds
     });
     res.json({
       success: true,
@@ -225,6 +227,38 @@ router.post('/:id/batch-progress', async (req, res) => {
     res.json({ success: true, data: updated });
   } catch (err) {
     console.error('Error in batch progress update:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/catalog/:id/seasons - Update completed seasons count and optional status
+router.post('/:id/seasons', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { seasonsCompleted, userStatus, syncEpisodes = true, currentSeason, totalSeasons } = req.body;
+
+    if (seasonsCompleted === undefined || seasonsCompleted === null) {
+      return res.status(400).json({ success: false, error: 'seasonsCompleted is required.' });
+    }
+
+    const updated = await setSeasonsCompleted(
+      id,
+      parseInt(seasonsCompleted, 10),
+      {
+        userStatus,
+        syncEpisodes: Boolean(syncEpisodes),
+        currentSeason: currentSeason ? parseInt(currentSeason, 10) : undefined,
+        totalSeasons: totalSeasons ? parseInt(totalSeasons, 10) : undefined
+      }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ success: false, error: 'Catalog item not found.' });
+    }
+
+    res.json({ success: true, data: updated, message: `Updated completed seasons to ${seasonsCompleted}.` });
+  } catch (err) {
+    console.error('Error updating seasons completed:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
