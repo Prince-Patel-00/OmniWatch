@@ -986,28 +986,215 @@ export async function batchSetSeasonProgress(catalogItemId, seasonNumber, episod
   return { success: true, catalogItemId, seasonNumber, isWatched };
 }
 
-export async function getCatalogStats() {
+export async function getCatalogStats(userId) {
   const sql = getSql();
-  const rows = await sql`SELECT user_status, media_type, format, is_favorite, user_rating FROM catalog_items;`;
+  const rows = userId
+    ? await sql`
+        SELECT ci.id, ci.title, ci.user_status, ci.media_type, ci.user_rating, ci.is_favorite,
+               ci.canonical_id, cm.genres_json, cm.poster_url, cm.rating as global_rating
+        FROM catalog_items ci
+        LEFT JOIN cached_media cm ON ci.canonical_id = cm.id OR ci.id = cm.id
+        WHERE ci.user_id = ${userId} OR ci.user_id IS NULL;
+      `
+    : await sql`
+        SELECT ci.id, ci.title, ci.user_status, ci.media_type, ci.user_rating, ci.is_favorite,
+               ci.canonical_id, cm.genres_json, cm.poster_url, cm.rating as global_rating
+        FROM catalog_items ci
+        LEFT JOIN cached_media cm ON ci.canonical_id = cm.id OR ci.id = cm.id;
+      `;
+
   const epRows = await sql`SELECT COUNT(*)::int as cnt FROM catalog_episode_progress WHERE is_watched = 1;`;
 
-  const stats = {
-    totalTitles: rows.length,
-    watchingCount: rows.filter(r => r.user_status === 'Watching').length,
-    completedCount: rows.filter(r => r.user_status === 'Completed').length,
-    wantToWatchCount: rows.filter(r => r.user_status === 'Want to Watch').length,
-    onHoldCount: rows.filter(r => r.user_status === 'On Hold').length,
-    droppedCount: rows.filter(r => r.user_status === 'Dropped').length,
-    favoriteCount: rows.filter(r => Boolean(r.is_favorite)).length,
-    watchedEpisodesCount: epRows[0]?.cnt || 0,
-    byType: {
-      Anime: rows.filter(r => r.media_type === 'Anime').length,
-      Movie: rows.filter(r => r.media_type === 'Movie').length,
-      Series: rows.filter(r => r.media_type === 'Series').length
+  const totalTitles = rows.length;
+  const statusCounts = {};
+  const typeCounts = { Anime: 0, Movie: 0, Series: 0 };
+  const genreCountMap = {};
+
+  let ratingSum = 0;
+  let ratedCount = 0;
+  let tier10 = 0;
+  let tier9 = 0;
+  let tier8 = 0;
+  let tier7 = 0;
+  let tierBelow7 = 0;
+  let unratedCount = 0;
+
+  for (const r of rows) {
+    statusCounts[r.user_status] = (statusCounts[r.user_status] || 0) + 1;
+    if (typeCounts[r.media_type] !== undefined) typeCounts[r.media_type]++;
+
+    let genres = [];
+    try { genres = JSON.parse(r.genres_json || '[]'); } catch (e) {}
+    for (const g of genres) {
+      if (!g || (g === 'Animation' && r.media_type === 'Anime')) continue;
+      genreCountMap[g] = (genreCountMap[g] || 0) + 1;
     }
+
+    const ur = r.user_rating;
+    if (ur && ur > 0) {
+      ratingSum += ur;
+      ratedCount++;
+      if (ur === 10) tier10++;
+      else if (ur === 9) tier9++;
+      else if (ur === 8) tier8++;
+      else if (ur === 7) tier7++;
+      else tierBelow7++;
+    } else {
+      unratedCount++;
+    }
+  }
+
+  const genreDistribution = Object.entries(genreCountMap)
+    .map(([genre, count]) => ({
+      genre,
+      count,
+      percentage: totalTitles > 0 ? Math.round((count / totalTitles) * 100) : 0
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+
+  const averageRating = ratedCount > 0 ? parseFloat((ratingSum / ratedCount).toFixed(1)) : 0;
+  const ratingSpread = {
+    averageRating,
+    totalRated: ratedCount,
+    unrated: unratedCount,
+    tier10,
+    tier9,
+    tier8,
+    tier7,
+    tierBelow7,
+    distribution: [
+      { score: '10★ Masterpiece', count: tier10, percentage: ratedCount > 0 ? Math.round((tier10 / ratedCount) * 100) : 0, color: 'bg-amber-400' },
+      { score: '9★ Exceptional', count: tier9, percentage: ratedCount > 0 ? Math.round((tier9 / ratedCount) * 100) : 0, color: 'bg-emerald-400' },
+      { score: '8★ Great', count: tier8, percentage: ratedCount > 0 ? Math.round((tier8 / ratedCount) * 100) : 0, color: 'bg-sky-400' },
+      { score: '7★ Good', count: tier7, percentage: ratedCount > 0 ? Math.round((tier7 / ratedCount) * 100) : 0, color: 'bg-purple-400' },
+      { score: '≤6★ Mixed', count: tierBelow7, percentage: ratedCount > 0 ? Math.round((tierBelow7 / ratedCount) * 100) : 0, color: 'bg-zinc-500' }
+    ]
   };
 
-  return stats;
+  const topRatedHighlights = rows
+    .filter((r) => (r.user_rating && r.user_rating >= 9) || r.is_favorite)
+    .sort((a, b) => (b.user_rating || 0) - (a.user_rating || 0))
+    .slice(0, 6)
+    .map((r) => {
+      let genres = [];
+      try { genres = JSON.parse(r.genres_json || '[]'); } catch (e) {}
+      return {
+        id: r.id,
+        title: r.title,
+        canonicalId: r.canonical_id,
+        posterUrl: r.poster_url,
+        mediaType: r.media_type,
+        userRating: r.user_rating || null,
+        userStatus: r.user_status,
+        isFavorite: Boolean(r.is_favorite),
+        genres: genres.slice(0, 3)
+      };
+    });
+
+  const completed = statusCounts['Completed'] || 0;
+  const watching = statusCounts['Watching'] || 0;
+  const onHold = statusCounts['On Hold'] || 0;
+  const dropped = statusCounts['Dropped'] || 0;
+  const startedTotal = completed + watching + onHold + dropped;
+  const completionRate = startedTotal > 0 ? Math.round((completed / startedTotal) * 100) : (totalTitles > 0 ? Math.round((completed / totalTitles) * 100) : 0);
+
+  let velocityRating = 'Steady Pacing';
+  if (completionRate >= 80 && completed >= 5) velocityRating = 'High Velocity (Master Finisher)';
+  else if (completionRate >= 60) velocityRating = 'Active Momentum';
+  else if (watching > completed) velocityRating = 'Parallel Bingeing';
+  else if (totalTitles > 0) velocityRating = 'Curating Backlog';
+
+  const completionVelocity = {
+    completionRate,
+    velocityRating,
+    completedCount: completed,
+    watchingCount: watching,
+    onHoldCount: onHold,
+    droppedCount: dropped,
+    wantToWatchCount: statusCounts['Want to Watch'] || 0
+  };
+
+  return {
+    totalTitles,
+    favoriteCount: rows.filter((r) => Boolean(r.is_favorite)).length,
+    watchedEpisodesCount: epRows[0]?.cnt || 0,
+    estimatedHoursWatched: Math.round(((epRows[0]?.cnt || 0) * 30) / 60),
+    genreDistribution,
+    ratingSpread,
+    topRatedHighlights,
+    completionVelocity,
+    byStatus: {
+      'Want to Watch': statusCounts['Want to Watch'] || 0,
+      Watching: statusCounts['Watching'] || 0,
+      Completed: statusCounts['Completed'] || 0,
+      'On Hold': statusCounts['On Hold'] || 0,
+      Dropped: statusCounts['Dropped'] || 0,
+      Rewatching: statusCounts['Rewatching'] || 0
+    },
+    byType: typeCounts
+  };
+}
+
+export async function getCatalogRecommendations(userId) {
+  const sql = getSql();
+  const favorites = userId
+    ? await sql`
+        SELECT ci.id, ci.title, ci.user_rating, ci.is_favorite, ci.media_type, ci.canonical_id,
+               cm.genres_json, cm.related_json as related_media_json, cm.rating as global_rating
+        FROM catalog_items ci
+        LEFT JOIN cached_media cm ON ci.canonical_id = cm.id OR ci.id = cm.id
+        WHERE (ci.user_id = ${userId} OR ci.user_id IS NULL) AND (ci.user_rating >= 9 OR ci.is_favorite = true)
+        ORDER BY ci.user_rating DESC, ci.updated_at DESC
+        LIMIT 10;
+      `
+    : await sql`
+        SELECT ci.id, ci.title, ci.user_rating, ci.is_favorite, ci.media_type, ci.canonical_id,
+               cm.genres_json, cm.related_json as related_media_json, cm.rating as global_rating
+        FROM catalog_items ci
+        LEFT JOIN cached_media cm ON ci.canonical_id = cm.id OR ci.id = cm.id
+        WHERE ci.user_rating >= 9 OR ci.is_favorite = true
+        ORDER BY ci.user_rating DESC, ci.updated_at DESC
+        LIMIT 10;
+      `;
+
+  const existingRows = userId
+    ? await sql`SELECT id, canonical_id FROM catalog_items WHERE user_id = ${userId} OR user_id IS NULL;`
+    : await sql`SELECT id, canonical_id FROM catalog_items;`;
+
+  const existingCatalogIds = new Set(existingRows.flatMap((r) => [r.id, r.canonical_id].filter(Boolean)));
+  const recommendations = [];
+  const seenIds = new Set();
+
+  for (const fav of favorites) {
+    let related = [];
+    try { related = JSON.parse(fav.related_media_json || '[]'); } catch (e) {}
+    let favGenres = [];
+    try { favGenres = JSON.parse(fav.genres_json || '[]'); } catch (e) {}
+
+    const sourceRating = fav.user_rating || 10;
+    for (const rel of related) {
+      if (!rel || !rel.id || seenIds.has(rel.id) || existingCatalogIds.has(rel.id)) continue;
+      seenIds.add(rel.id);
+      recommendations.push({
+        id: rel.id,
+        title: rel.title,
+        posterUrl: rel.posterUrl,
+        backdropUrl: rel.backdropUrl || null,
+        mediaType: rel.mediaType || fav.media_type,
+        rating: rel.rating || 8.5,
+        genres: rel.genres || favGenres.slice(0, 3),
+        sourceTitle: fav.title,
+        sourceRating,
+        matchScore: 98,
+        matchReason: `Curated recommendation based on ${fav.title} (Rated ${sourceRating}/10)`,
+        matchTags: ['Shared Themes', ...(favGenres.slice(0, 2))]
+      });
+      if (recommendations.length >= 24) break;
+    }
+  }
+
+  return recommendations.slice(0, 24);
 }
 
 export async function exportCatalogData() {

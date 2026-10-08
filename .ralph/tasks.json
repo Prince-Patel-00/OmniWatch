@@ -1,34 +1,34 @@
 {
   "milestone": "v2.5 OmniWatch Core Rebuild",
-  "phase": "Phase 3 & 4: Unified Seasons & Dynamic Mirrors",
+  "phase": "Phase 5: Modern Insights & Rating Recommendations",
   "tasks": [
     {
       "id": 1,
-      "description": "Enhance generateDefaultMirrors in packages/shared/src/constants.js to support seasonNumber, episodeNumber, and direct episode streaming templates with dynamic token interpolation.",
+      "description": "Extend database stats & recommendation algorithms in db.js and db_neon.js with genre distribution, rating spreads, franchise highlights, completion velocity, and user 9-10 rating recommendations.",
       "status": "completed",
-      "verification": "node --test tests/unified_seasons_mirrors.test.js"
+      "verification": "node --test tests/modern_insights_recommendations.test.js"
     },
     {
       "id": 2,
-      "description": "Implement direct episode streaming launch buttons and mirror picker in apps/client/src/components/EpisodeGuide.jsx using dynamic mirror registry.",
+      "description": "Redesign StatsDashboard.jsx with modern taste metrics replacing raw hours/episode counters and displaying top favorites & recommendations.",
       "status": "completed",
       "verification": "npm run build --workspace=apps/client"
     },
     {
       "id": 3,
-      "description": "Implement unified season and franchise tracking model: render Franchise Chronology Timeline for fragmented anime/shows (prequels/sequels) in MediaDetailModal and EpisodeGuide alongside unified multi-season series.",
+      "description": "Integrate 'More Like This (Favorites)' in FilterBar.jsx and App.jsx with recommendation cards and quick navigation.",
       "status": "completed",
       "verification": "npm run build --workspace=apps/client"
     },
     {
       "id": 4,
-      "description": "Enhance mirrorHealthService.js and mirrorRoutes.js with GET /api/mirrors/sources-for-episode and dynamic domain auto-migration verification.",
+      "description": "Create comprehensive test suite tests/modern_insights_recommendations.test.js covering taste metrics calculation and 9-10 rating recommendation triggers.",
       "status": "completed",
-      "verification": "node --test tests/unified_seasons_mirrors.test.js"
+      "verification": "node --test tests/modern_insights_recommendations.test.js"
     },
     {
       "id": 5,
-      "description": "Run full test verification suite ensuring 0 errors across all test suites and Vite build.",
+      "description": "Run Ralph Loop verification: verify client builds cleanly (npm run build) and all tests pass with 0 errors (npm test).",
       "status": "completed",
       "verification": "npm test"
     }

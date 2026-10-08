@@ -1560,11 +1560,140 @@ export function getCatalogStats(userId) {
     typeMap[t.media_type] = t.count;
   }
 
+  // Fetch all user catalog rows with cached metadata for taste metrics
+  const catalogRows = db.prepare(`
+    SELECT ci.id, ci.title, ci.user_status, ci.media_type, ci.user_rating, ci.is_favorite,
+           ci.canonical_id, ci.updated_at, ci.completed_at,
+           cm.genres_json, cm.poster_url, cm.rating as global_rating
+    FROM catalog_items ci
+    LEFT JOIN cached_media cm ON ci.canonical_id = cm.id OR ci.id = cm.id
+    WHERE (ci.user_id = ? OR ci.user_id IS NULL)
+  `).all(targetUserId);
+
+  // 1. Genre Distribution
+  const genreCountMap = {};
+  for (const row of catalogRows) {
+    let genres = [];
+    try {
+      genres = JSON.parse(row.genres_json || '[]');
+    } catch (e) {
+      if (typeof row.genres_json === 'string') {
+        genres = row.genres_json.split(',').map((g) => g.trim());
+      }
+    }
+    for (const g of genres) {
+      if (!g || (g === 'Animation' && row.media_type === 'Anime')) continue;
+      genreCountMap[g] = (genreCountMap[g] || 0) + 1;
+    }
+  }
+
+  const genreDistribution = Object.entries(genreCountMap)
+    .map(([genre, count]) => ({
+      genre,
+      count,
+      percentage: totalTitles > 0 ? Math.round((count / totalTitles) * 100) : 0
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+
+  // 2. Rating Spread / Taste Calibration Curve
+  let ratingSum = 0;
+  let ratedCount = 0;
+  let tier10 = 0;
+  let tier9 = 0;
+  let tier8 = 0;
+  let tier7 = 0;
+  let tierBelow7 = 0;
+  let unratedCount = 0;
+
+  for (const row of catalogRows) {
+    const r = row.user_rating;
+    if (r && r > 0) {
+      ratingSum += r;
+      ratedCount++;
+      if (r === 10) tier10++;
+      else if (r === 9) tier9++;
+      else if (r === 8) tier8++;
+      else if (r === 7) tier7++;
+      else tierBelow7++;
+    } else {
+      unratedCount++;
+    }
+  }
+
+  const averageRating = ratedCount > 0 ? parseFloat((ratingSum / ratedCount).toFixed(1)) : 0;
+  const ratingSpread = {
+    averageRating,
+    totalRated: ratedCount,
+    unrated: unratedCount,
+    tier10,
+    tier9,
+    tier8,
+    tier7,
+    tierBelow7,
+    distribution: [
+      { score: '10★ Masterpiece', count: tier10, percentage: ratedCount > 0 ? Math.round((tier10 / ratedCount) * 100) : 0, color: 'bg-amber-400' },
+      { score: '9★ Exceptional', count: tier9, percentage: ratedCount > 0 ? Math.round((tier9 / ratedCount) * 100) : 0, color: 'bg-emerald-400' },
+      { score: '8★ Great', count: tier8, percentage: ratedCount > 0 ? Math.round((tier8 / ratedCount) * 100) : 0, color: 'bg-sky-400' },
+      { score: '7★ Good', count: tier7, percentage: ratedCount > 0 ? Math.round((tier7 / ratedCount) * 100) : 0, color: 'bg-purple-400' },
+      { score: '≤6★ Mixed', count: tierBelow7, percentage: ratedCount > 0 ? Math.round((tierBelow7 / ratedCount) * 100) : 0, color: 'bg-zinc-500' }
+    ]
+  };
+
+  // 3. Top-Rated Franchise Highlights (Rated 9 or 10 or favorites)
+  const topRatedHighlights = catalogRows
+    .filter((r) => (r.user_rating && r.user_rating >= 9) || r.is_favorite === 1)
+    .sort((a, b) => (b.user_rating || 0) - (a.user_rating || 0) || (b.is_favorite || 0) - (a.is_favorite || 0))
+    .slice(0, 6)
+    .map((r) => {
+      let genres = [];
+      try { genres = JSON.parse(r.genres_json || '[]'); } catch (e) {}
+      return {
+        id: r.id,
+        title: r.title,
+        canonicalId: r.canonical_id,
+        posterUrl: r.poster_url,
+        mediaType: r.media_type,
+        userRating: r.user_rating || null,
+        userStatus: r.user_status,
+        isFavorite: Boolean(r.is_favorite),
+        genres: genres.slice(0, 3)
+      };
+    });
+
+  // 4. Completion Velocity & Momentum
+  const completed = statusMap['Completed'] || 0;
+  const watching = statusMap['Watching'] || 0;
+  const onHold = statusMap['On Hold'] || 0;
+  const dropped = statusMap['Dropped'] || 0;
+  const startedTotal = completed + watching + onHold + dropped;
+  const completionRate = startedTotal > 0 ? Math.round((completed / startedTotal) * 100) : (totalTitles > 0 ? Math.round((completed / totalTitles) * 100) : 0);
+
+  let velocityRating = 'Steady Pacing';
+  if (completionRate >= 80 && completed >= 5) velocityRating = 'High Velocity (Master Finisher)';
+  else if (completionRate >= 60) velocityRating = 'Active Momentum';
+  else if (watching > completed) velocityRating = 'Parallel Bingeing';
+  else if (totalTitles > 0) velocityRating = 'Curating Backlog';
+
+  const completionVelocity = {
+    completionRate,
+    velocityRating,
+    completedCount: completed,
+    watchingCount: watching,
+    onHoldCount: onHold,
+    droppedCount: dropped,
+    wantToWatchCount: statusMap['Want to Watch'] || 0
+  };
+
   return {
     totalTitles,
     favoriteCount,
     watchedEpisodesCount: watchedEpsCount,
     estimatedHoursWatched: estimatedHours,
+    genreDistribution,
+    ratingSpread,
+    topRatedHighlights,
+    completionVelocity,
     byStatus: {
       'Want to Watch': statusMap['Want to Watch'] || 0,
       Watching: statusMap['Watching'] || 0,
@@ -1579,6 +1708,117 @@ export function getCatalogStats(userId) {
       Series: typeMap['Series'] || 0
     }
   };
+}
+
+export function getCatalogRecommendations(userId) {
+  if (isNeon()) return neonDB.getCatalogRecommendations(userId);
+  const db = getDB();
+  const targetUserId = userId || DEFAULT_USER_ID;
+
+  // 1. Get user's favorite titles (user_rating >= 9 or is_favorite = 1)
+  const favorites = db.prepare(`
+    SELECT ci.id, ci.title, ci.user_rating, ci.is_favorite, ci.media_type, ci.canonical_id,
+           cm.genres_json, cm.cast_json, cm.studios_json, cm.creators_json, cm.related_json as related_media_json, cm.rating as global_rating
+    FROM catalog_items ci
+    LEFT JOIN cached_media cm ON ci.canonical_id = cm.id OR ci.id = cm.id
+    WHERE (ci.user_id = ? OR ci.user_id IS NULL) AND (ci.user_rating >= 9 OR ci.is_favorite = 1)
+    ORDER BY ci.user_rating DESC, ci.updated_at DESC
+    LIMIT 10
+  `).all(targetUserId);
+
+  let baseFavorites = favorites;
+  if (baseFavorites.length === 0) {
+    baseFavorites = db.prepare(`
+      SELECT ci.id, ci.title, ci.user_rating, ci.is_favorite, ci.media_type, ci.canonical_id,
+             cm.genres_json, cm.cast_json, cm.studios_json, cm.creators_json, cm.related_json as related_media_json, cm.rating as global_rating
+      FROM catalog_items ci
+      LEFT JOIN cached_media cm ON ci.canonical_id = cm.id OR ci.id = cm.id
+      WHERE (ci.user_id = ? OR ci.user_id IS NULL)
+      ORDER BY ci.user_rating DESC, ci.updated_at DESC
+      LIMIT 5
+    `).all(targetUserId);
+  }
+
+  const existingCatalogIds = new Set(
+    db.prepare('SELECT id, canonical_id FROM catalog_items WHERE (user_id = ? OR user_id IS NULL)')
+      .all(targetUserId)
+      .flatMap(r => [r.id, r.canonical_id].filter(Boolean))
+  );
+
+  const recommendations = [];
+  const seenIds = new Set();
+
+  for (const fav of baseFavorites) {
+    let related = [];
+    try {
+      related = JSON.parse(fav.related_media_json || '[]');
+    } catch (e) {}
+
+    let favGenres = [];
+    try {
+      favGenres = JSON.parse(fav.genres_json || '[]');
+    } catch (e) {}
+
+    const sourceRating = fav.user_rating || 10;
+
+    // A. Direct upstream recommendations from relatedMedia
+    for (const rel of related) {
+      if (!rel || !rel.id || seenIds.has(rel.id) || existingCatalogIds.has(rel.id)) continue;
+      seenIds.add(rel.id);
+      recommendations.push({
+        id: rel.id,
+        title: rel.title,
+        posterUrl: rel.posterUrl,
+        backdropUrl: rel.backdropUrl || null,
+        mediaType: rel.mediaType || fav.media_type,
+        rating: rel.rating || 8.5,
+        genres: rel.genres || favGenres.slice(0, 3),
+        sourceTitle: fav.title,
+        sourceRating,
+        matchScore: 98,
+        matchReason: `Curated recommendation based on ${fav.title} (Rated ${sourceRating}/10)`,
+        matchTags: ['Shared Themes', ...(favGenres.slice(0, 2))]
+      });
+      if (recommendations.length >= 24) break;
+    }
+
+    // B. High-rated matches sharing genres
+    if (favGenres.length > 0 && recommendations.length < 24) {
+      const topGenre = favGenres[0];
+      const genreMatches = db.prepare(`
+        SELECT id, title, poster_url, backdrop_url, media_type, rating, genres_json
+        FROM cached_media
+        WHERE genres_json LIKE ? AND rating >= 7.5
+        ORDER BY popularity_score DESC, rating DESC
+        LIMIT 10
+      `).all(`%${topGenre}%`);
+
+      for (const gm of genreMatches) {
+        if (seenIds.has(gm.id) || existingCatalogIds.has(gm.id)) continue;
+        seenIds.add(gm.id);
+        let gmGenres = [];
+        try { gmGenres = JSON.parse(gm.genres_json || '[]'); } catch (e) {}
+
+        recommendations.push({
+          id: gm.id,
+          title: gm.title,
+          posterUrl: gm.poster_url,
+          backdropUrl: gm.backdrop_url,
+          mediaType: gm.media_type,
+          rating: gm.rating,
+          genres: gmGenres,
+          sourceTitle: fav.title,
+          sourceRating,
+          matchScore: 92,
+          matchReason: `High-rated ${topGenre} match for fans of ${fav.title}`,
+          matchTags: [`${topGenre}`, ...(favGenres.slice(1, 2))]
+        });
+        if (recommendations.length >= 24) break;
+      }
+    }
+  }
+
+  return recommendations.slice(0, 24);
 }
 
 export function exportCatalogData() {

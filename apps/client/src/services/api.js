@@ -260,6 +260,12 @@ export async function getCatalogStats() {
   return res.json();
 }
 
+export async function getCatalogRecommendations() {
+  const res = await authFetch(`${BASE_CATALOG}/recommendations`);
+  if (!res.ok) throw new Error(`Failed to load recommendations`);
+  return res.json();
+}
+
 export async function checkInCatalog(canonicalId) {
   const res = await authFetch(`${BASE_CATALOG}/check/${encodeURIComponent(canonicalId)}`);
   if (!res.ok) return { success: false, inCatalog: false };

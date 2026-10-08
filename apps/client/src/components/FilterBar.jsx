@@ -166,6 +166,16 @@ export default function FilterBar({
               <Calendar className="w-3.5 h-3.5 text-amber-400" />
               <span>Upcoming Radar</span>
             </button>
+            <button
+              onClick={() => onGlobalTabChange('for_you')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all ${globalTab === 'for_you'
+                ? 'bg-gradient-to-r from-red-600/25 to-amber-600/25 text-amber-300 border-amber-500/50 shadow-md shadow-amber-950/30'
+                : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:text-amber-300'
+                }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>More Like This (Favorites)</span>
+            </button>
 
             {/* Hide Saved Toggle with Micro Switch */}
             {onToggleHideInCatalog && (

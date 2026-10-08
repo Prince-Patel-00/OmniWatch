@@ -177,6 +177,13 @@ export default function MediaCard({
             </p>
           )}
 
+          {media.sourceTitle && (
+            <div className="flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold truncate">
+              <Sparkles className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+              <span className="truncate">Based on {media.sourceTitle} (★{media.sourceRating || 10})</span>
+            </div>
+          )}
+
           {/* Matched Actor / Hero Highlight or Lead Cast Row */}
           {(() => {
             if (media.matchedPerson) {

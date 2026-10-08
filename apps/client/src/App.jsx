@@ -19,6 +19,7 @@ import {
   refreshMediaDetail,
   getCatalog,
   getCatalogStats,
+  getCatalogRecommendations,
   saveToCatalog,
   updateCatalogItem,
   deleteFromCatalog,
@@ -250,6 +251,8 @@ export default function App() {
           });
         } else if (globalTab === 'upcoming') {
           res = await getUpcomingMedia(activeType, globalSort, activeAnimeFormat, currentPage, pageSize, activeGenre, excludeIdsParam);
+        } else if (globalTab === 'for_you') {
+          res = await getCatalogRecommendations();
         } else {
           res = await getTrendingMedia(activeType, globalSort, activeAnimeFormat, currentPage, pageSize, activeGenre, '', excludeIdsParam);
         }
@@ -786,18 +789,21 @@ export default function App() {
         {currentView === 'stats' ? (
           <StatsDashboard
             stats={stats}
-            onNavigateToCatalog={(status, type) => {
+            onSelectMedia={(item) => setSelectedMedia(item)}
+            onNavigateToCatalog={(status, type, genre) => {
               if (status === 'Want to Watch') {
                 handleViewChange('want_to_watch');
               } else {
                 handleViewChange('catalog');
-                if (status) setActiveStatus(status);
+                if (status && status !== 'All') setActiveStatus(status);
               }
               setActiveSort('updated_desc');
-              if (type) setActiveType(type);
+              if (type && type !== 'All') setActiveType(type);
+              if (genre && genre !== 'All') setActiveGenre(genre);
             }}
-            onNavigateToGlobal={() => {
+            onNavigateToGlobal={(tab = 'trending') => {
               handleViewChange('global');
+              setGlobalTab(tab);
             }}
           />
         ) : (
@@ -908,7 +914,9 @@ export default function App() {
                         ? 'No titles currently in your "Want to Watch" list.'
                         : (currentView === 'catalog'
                           ? 'No titles found in your personal catalog.'
-                          : 'No media found matching your search or filters.'))}
+                          : (globalTab === 'for_you'
+                            ? 'No recommendations generated yet.'
+                            : 'No media found matching your search or filters.')))}
                   </h3>
                   <p className="text-xs sm:text-sm text-zinc-400 max-w-md mx-auto">
                     {activeCharacter
@@ -917,7 +925,9 @@ export default function App() {
                         ? 'Browse Global Discovery to bookmark movies, anime, and series you want to watch next!'
                         : (currentView === 'catalog'
                           ? 'Head over to Global discovery to explore trending anime, movies, and series, and add them to your watchlist!'
-                          : 'Try broadening your search query or switching category filters.'))}
+                          : (globalTab === 'for_you'
+                            ? 'Rate your favorite titles with a 9★ or 10★ (or mark them as Favorites) in your catalog to unlock tailored recommendations!'
+                            : 'Try broadening your search query or switching category filters.')))}
                   </p>
                 </div>
 

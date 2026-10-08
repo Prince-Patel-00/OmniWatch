@@ -9,6 +9,7 @@ import {
   batchSetSeasonProgress,
   setSeasonsCompleted,
   getCatalogStats,
+  getCatalogRecommendations,
   exportCatalogData,
   importCatalogData,
   getCanonicalMedia,
@@ -76,6 +77,17 @@ router.get('/stats', async (req, res) => {
     res.json({ success: true, data: stats });
   } catch (err) {
     console.error('Error fetching catalog stats:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/catalog/recommendations (More Like This based on 9-10 rated favorites)
+router.get('/recommendations', async (req, res) => {
+  try {
+    const recs = await getCatalogRecommendations(req.userId);
+    res.json({ success: true, count: recs.length, data: recs });
+  } catch (err) {
+    console.error('Error fetching catalog recommendations:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
