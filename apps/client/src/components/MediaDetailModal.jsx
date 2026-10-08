@@ -32,6 +32,7 @@ import {
   formatTimeUntil,
   getPlatformLogo,
   generateDefaultMirrors,
+  DEFAULT_MIRROR_REGISTRY,
   QUALITIES,
   SOURCE_TYPES
 } from '@omniwatch/shared';
@@ -78,6 +79,9 @@ export default function MediaDetailModal({
     return [...defaults, ...customSources];
   };
 
+  // Dynamic Mirror Registry State
+  const [mirrorRegistry, setMirrorRegistry] = useState(DEFAULT_MIRROR_REGISTRY);
+
   // Streaming & Download Mirrors State
   const [sourceFilter, setSourceFilter] = useState('All'); // 'All' | 'Stream' | 'Download'
   const [sourcesList, setSourcesList] = useState(() => getMergedSources(media));
@@ -97,6 +101,7 @@ export default function MediaDetailModal({
     try {
       const res = await checkMirrorsHealth();
       if (res && res.data) {
+        setMirrorRegistry(res.data);
         if (typeof onRefreshMedia === 'function') {
           await onRefreshMedia();
         } else if (media?.id) {
@@ -152,6 +157,11 @@ export default function MediaDetailModal({
   const isEpisodic = media.mediaType === 'Anime' || media.mediaType === 'Series';
   const timeUntilAiring = media.nextAiringAt ? formatTimeUntil(media.nextAiringAt) : null;
   const isAiring = media.status === 'Airing';
+
+  // Franchise relations for anime / series installments
+  const franchisePrequels = (media.relatedMedia || []).filter((r) => r.relationType === 'PREQUEL');
+  const franchiseSequels = (media.relatedMedia || []).filter((r) => r.relationType === 'SEQUEL');
+  const hasFranchiseSeasons = franchisePrequels.length > 0 || franchiseSequels.length > 0;
 
   // Filter watch providers by selected region (or Global)
   const availableProviders = (media.watchProviders || []).filter(
@@ -854,6 +864,46 @@ export default function MediaDetailModal({
             </div>
           )}
 
+          {/* Franchise Seasons Chronology Navigator */}
+          {hasFranchiseSeasons && (
+            <div className="px-4 sm:px-6 py-2.5 bg-zinc-950/90 border-b border-zinc-800 flex items-center justify-between gap-3 overflow-x-auto scrollbar-none">
+              <div className="flex items-center gap-2 shrink-0">
+                <Sparkles className="w-3.5 h-3.5 text-red-500 animate-pulse" />
+                <span className="text-xs font-black text-red-400 uppercase tracking-wider">
+                  Franchise Timeline:
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {franchisePrequels.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => onSelectRelated && onSelectRelated(p)}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-red-500/50 text-xs font-semibold text-zinc-300 hover:text-white transition-all shrink-0"
+                    title={`Switch to prequel installment: ${p.title}`}
+                  >
+                    <span className="text-[9px] px-1 py-0.2 rounded bg-zinc-800 text-zinc-400 font-bold uppercase">Prequel</span>
+                    <span className="max-w-[120px] truncate">{p.title}</span>
+                  </button>
+                ))}
+                <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-red-600 text-white text-xs font-black shrink-0 shadow-sm">
+                  <span className="text-[9px] px-1 py-0.2 rounded bg-black/30 text-white font-bold uppercase">Current</span>
+                  <span className="max-w-[130px] truncate">{media.title}</span>
+                </div>
+                {franchiseSequels.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => onSelectRelated && onSelectRelated(s)}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-emerald-500/50 text-xs font-semibold text-zinc-300 hover:text-white transition-all shrink-0"
+                    title={`Switch to next season: ${s.title}`}
+                  >
+                    <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/30 font-bold uppercase">Next Season</span>
+                    <span className="max-w-[120px] truncate">{s.title}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Official Streaming Availability Banner (Consolidated & Non-duplicated) */}
           {availableProviders.length > 0 && (
             <div className="px-4 sm:px-6 pt-3 pb-2 bg-zinc-950/70 border-b border-zinc-800/80">
@@ -1407,6 +1457,8 @@ export default function MediaDetailModal({
             {/* TAB 2: SEASONS & EPISODES */}
             {activeTab === 'episodes' && (
               <EpisodeGuide
+                media={media}
+                mirrorRegistry={mirrorRegistry}
                 seasons={media.seasons || []}
                 watchedEpisodes={catalogEntry?.watchedEpisodes || []}
                 seasonsCompleted={seasonsCompleted}
@@ -1420,6 +1472,8 @@ export default function MediaDetailModal({
                   }
                 }}
                 isCatalogItem={Boolean(catalogEntry)}
+                relatedMedia={media.relatedMedia || []}
+                onSelectRelated={onSelectRelated}
               />
             )}
 

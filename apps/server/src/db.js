@@ -7,6 +7,9 @@ import * as neonDB from './db_neon.js';
 import { hashPassword, DEFAULT_USER_ID, DEFAULT_USER_EMAIL } from './auth.js';
 
 export function isNeon() {
+  if (process.env.USE_SQLITE === '1' || process.env.USE_SQLITE === 'true') {
+    return false;
+  }
   return Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL);
 }
 

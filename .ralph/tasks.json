@@ -1,34 +1,34 @@
 {
   "milestone": "v2.5 OmniWatch Core Rebuild",
-  "phase": "Phase 2: UI Overhaul & Pagination",
+  "phase": "Phase 3 & 4: Unified Seasons & Dynamic Mirrors",
   "tasks": [
     {
       "id": 1,
-      "description": "Completely remove Hero Spotlight banner and spotlightMedia state/effects from App.jsx and the home view.",
+      "description": "Enhance generateDefaultMirrors in packages/shared/src/constants.js to support seasonNumber, episodeNumber, and direct episode streaming templates with dynamic token interpolation.",
       "status": "completed",
-      "verification": "npm run build --workspace=apps/client"
+      "verification": "node --test tests/unified_seasons_mirrors.test.js"
     },
     {
       "id": 2,
-      "description": "Separate 'Want to Watch' into its own dedicated primary view/workspace, distinct from Completed, On Hold, and Dropped in Navbar.jsx and App.jsx.",
+      "description": "Implement direct episode streaming launch buttons and mirror picker in apps/client/src/components/EpisodeGuide.jsx using dynamic mirror registry.",
       "status": "completed",
       "verification": "npm run build --workspace=apps/client"
     },
     {
       "id": 3,
-      "description": "Deduplicate watch sources in MediaDetailModal.jsx: if Official Streaming Availability is present, cleanly integrate and suppress duplicate mirror blocks.",
+      "description": "Implement unified season and franchise tracking model: render Franchise Chronology Timeline for fragmented anime/shows (prequels/sequels) in MediaDetailModal and EpisodeGuide alongside unified multi-season series.",
       "status": "completed",
       "verification": "npm run build --workspace=apps/client"
     },
     {
       "id": 4,
-      "description": "Overhaul pagination: enforce strict uniform page limits (24 items/page) and build modern Pagination.jsx with First, Prev, Page Numbers, Next, and Last buttons.",
+      "description": "Enhance mirrorHealthService.js and mirrorRoutes.js with GET /api/mirrors/sources-for-episode and dynamic domain auto-migration verification.",
       "status": "completed",
-      "verification": "node --test tests/pagination.test.js"
+      "verification": "node --test tests/unified_seasons_mirrors.test.js"
     },
     {
       "id": 5,
-      "description": "Run full test verification suite ensuring 0 errors across pagination, auth, and regression tests.",
+      "description": "Run full test verification suite ensuring 0 errors across all test suites and Vite build.",
       "status": "completed",
       "verification": "npm test"
     }

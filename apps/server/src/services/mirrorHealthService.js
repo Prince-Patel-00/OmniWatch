@@ -1,4 +1,5 @@
 import { getAllMirrorSources, updateMirrorSourceDomain, updateMirrorStatus } from '../db.js';
+import { generateDefaultMirrors, DEFAULT_MIRROR_REGISTRY } from '@omniwatch/shared';
 
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 const PROBE_TIMEOUT_MS = 4000;
@@ -270,4 +271,23 @@ export function stopPeriodicMirrorChecks() {
     clearInterval(periodicCheckTimer);
     periodicCheckTimer = null;
   }
+}
+
+/**
+ * Resolves verified episode-level streaming and download mirrors
+ */
+export async function resolveEpisodeMirrors({ title, mediaType = 'Anime', seasonNumber = 1, episodeNumber = 1 }) {
+  if (!title) return [];
+  let allMirrors = [];
+  try {
+    allMirrors = await getAllMirrorSources();
+  } catch (e) {
+    allMirrors = DEFAULT_MIRROR_REGISTRY;
+  }
+  const registry = allMirrors && allMirrors.length > 0 ? allMirrors : DEFAULT_MIRROR_REGISTRY;
+  return generateDefaultMirrors(
+    { title, mediaType },
+    registry,
+    { seasonNumber, episodeNumber }
+  );
 }

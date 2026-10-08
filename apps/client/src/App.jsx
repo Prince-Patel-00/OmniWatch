@@ -40,7 +40,7 @@ export default function App() {
       if (urlTab && ['global', 'want_to_watch', 'catalog', 'stats'].includes(urlTab)) return urlTab;
       const saved = localStorage.getItem('omniwatch_view');
       if (saved && ['global', 'want_to_watch', 'catalog', 'stats'].includes(saved)) return saved;
-    } catch (e) {}
+    } catch (e) { }
     return 'global';
   });
   const [globalTab, setGlobalTab] = useState('trending'); // 'trending' | 'upcoming'
@@ -169,8 +169,8 @@ export default function App() {
       const excludeIdsParam = priorIds.length > 0 ? priorIds.join(',') : '';
 
       if (requestedView === 'want_to_watch') {
-        const catalogSort = activeSort === 'popularity_desc' 
-          ? 'updated_desc' 
+        const catalogSort = activeSort === 'popularity_desc'
+          ? 'updated_desc'
           : (activeSort === 'release_desc' ? 'year_desc' : activeSort);
 
         const res = await getCatalog({
@@ -196,8 +196,8 @@ export default function App() {
           seenPagesRef.current.set(currentPage, (res.data || []).map((m) => m.id || m.canonicalId).filter(Boolean));
         }
       } else if (requestedView === 'catalog') {
-        const catalogSort = activeSort === 'popularity_desc' 
-          ? 'updated_desc' 
+        const catalogSort = activeSort === 'popularity_desc'
+          ? 'updated_desc'
           : (activeSort === 'release_desc' ? 'year_desc' : activeSort);
 
         const res = await getCatalog({
@@ -295,13 +295,13 @@ export default function App() {
     const updater = (item) =>
       item.id === catalogEntry.id
         ? {
-            ...item,
-            currentEpisode: nextEp,
-            watchedEpisodes: [
-              ...(item.watchedEpisodes || []),
-              { seasonNumber: season, episodeNumber: nextEp }
-            ]
-          }
+          ...item,
+          currentEpisode: nextEp,
+          watchedEpisodes: [
+            ...(item.watchedEpisodes || []),
+            { seasonNumber: season, episodeNumber: nextEp }
+          ]
+        }
         : item;
 
     // Optimistic UI updates
@@ -733,7 +733,7 @@ export default function App() {
     }
 
     return sorted;
-  }, [currentView, uncatalogedMedia, catalogMediaList, catalogMap, spotlightMedia, debouncedSearch, activeCharacter, currentPage, activeType, animeSubTab, activeGenre, activeStatus, favoriteOnly, activeSort]);
+  }, [currentView, uncatalogedMedia, catalogMediaList, catalogMap, debouncedSearch, activeCharacter, currentPage, activeType, animeSubTab, activeGenre, activeStatus, favoriteOnly, activeSort]);
 
   const handleViewChange = (nextView) => {
     setCurrentView(nextView);
@@ -743,7 +743,7 @@ export default function App() {
       const url = new URL(window.location);
       url.searchParams.set('view', nextView);
       window.history.replaceState({}, '', url);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const handleSearchChange = (val) => {
@@ -758,7 +758,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans selection:bg-red-600 selection:text-white">
-      
+
       {/* Top Universal Navbar */}
       <Navbar
         currentView={currentView}
@@ -781,7 +781,7 @@ export default function App() {
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        
+
         {/* VIEW 1: INSIGHTS & ANALYTICS */}
         {currentView === 'stats' ? (
           <StatsDashboard
@@ -823,7 +823,7 @@ export default function App() {
               favoriteOnly={favoriteOnly}
               onToggleFavorite={() => setFavoriteOnly(!favoriteOnly)}
               onResetFilters={handleResetFilters}
-              resultCount={currentView === 'global' ? displayItems.length + (spotlightMedia ? 1 : 0) : displayItems.length}
+              resultCount={displayItems.length}
               globalTab={globalTab}
               onGlobalTabChange={setGlobalTab}
               hideInCatalog={hideInCatalog}

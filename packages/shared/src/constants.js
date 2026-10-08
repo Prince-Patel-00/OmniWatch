@@ -183,6 +183,7 @@ export const DEFAULT_MIRROR_REGISTRY = [
     currentDomain: 'hianime.org',
     candidateDomains: ['hianime.org', 'hianime.to', 'aniwatchtv.to', 'hianime.nz'],
     searchTemplate: 'https://{domain}/filter?search={query}',
+    episodeTemplate: 'https://{domain}/search?keyword={query}+episode+{episode}',
     directUrlTemplate: 'https://{domain}/',
     statusNote: 'Active .org mirror with multi-server playback',
     sortOrder: 1
@@ -197,6 +198,7 @@ export const DEFAULT_MIRROR_REGISTRY = [
     currentDomain: 'www.miruro.cx',
     candidateDomains: ['www.miruro.cx', 'miruro.bz', 'miruro.tv', 'barelystarted.miruro.tv'],
     searchTemplate: 'https://{domain}/search?query={query}',
+    episodeTemplate: 'https://{domain}/search?query={query}+{episode}',
     directUrlTemplate: 'https://{domain}/',
     statusNote: 'Active Miruro 2.0 modern anime index',
     sortOrder: 2
@@ -211,6 +213,7 @@ export const DEFAULT_MIRROR_REGISTRY = [
     currentDomain: 'animepahe.ng',
     candidateDomains: ['animepahe.ng', 'animepahe.ru', 'animepahe.com', 'animepahe.org'],
     searchTemplate: 'https://{domain}/?s={query}',
+    episodeTemplate: 'https://{domain}/?s={query}+{episode}',
     directUrlTemplate: 'https://{domain}/',
     statusNote: 'Active .ng domain with direct multi-quality streams',
     sortOrder: 3
@@ -225,6 +228,7 @@ export const DEFAULT_MIRROR_REGISTRY = [
     currentDomain: 'aniwaves.ru',
     candidateDomains: ['aniwaves.ru', 'aniwave.to', 'aniwave.se', 'aniwave.best'],
     searchTemplate: 'https://{domain}/filter?keyword={query}',
+    episodeTemplate: 'https://{domain}/filter?keyword={query}+episode+{episode}',
     directUrlTemplate: 'https://{domain}/',
     statusNote: 'Active .ru mirror with advanced filters',
     sortOrder: 4
@@ -351,6 +355,7 @@ export const DEFAULT_MIRROR_REGISTRY = [
     currentDomain: 'nyaa.si',
     candidateDomains: ['nyaa.si', 'nyaa.land', 'nyaa.iss.ink'],
     searchTemplate: 'https://{domain}/?f=0&c=1_2&q={query}+1080p',
+    episodeTemplate: 'https://{domain}/?f=0&c=1_2&q={query}+{episode}+1080p',
     directUrlTemplate: 'https://{domain}/',
     statusNote: 'Primary global anime tracker',
     sortOrder: 13
@@ -379,6 +384,7 @@ export const DEFAULT_MIRROR_REGISTRY = [
     currentDomain: 'lookmovie-offcial.cyou',
     candidateDomains: ['lookmovie-offcial.cyou', 'lookmovie.buzz', 'lookmovie2.to', 'lookmovie.ag'],
     searchTemplate: 'https://{domain}/search/?q={query}',
+    episodeTemplate: 'https://{domain}/search/?q={query}+season+{season}+episode+{episode}',
     directUrlTemplate: 'https://{domain}/',
     statusNote: 'Verified active LookMovie mirror',
     sortOrder: 15
@@ -407,6 +413,7 @@ export const DEFAULT_MIRROR_REGISTRY = [
     currentDomain: 'cinezone.city',
     candidateDomains: ['cinezone.city', 'cinezone.to'],
     searchTemplate: 'https://{domain}/?s={query}',
+    episodeTemplate: 'https://{domain}/?s={query}+s{season}+e{episode}',
     directUrlTemplate: 'https://{domain}/',
     statusNote: 'Active .city mirror with multi-host streaming',
     sortOrder: 17
@@ -421,6 +428,7 @@ export const DEFAULT_MIRROR_REGISTRY = [
     currentDomain: 'fbox.city',
     candidateDomains: ['fbox.city', 'fboxz.to'],
     searchTemplate: 'https://{domain}/?s={query}',
+    episodeTemplate: 'https://{domain}/?s={query}+s{season}+e{episode}',
     directUrlTemplate: 'https://{domain}/',
     statusNote: 'Active .city mirror with multi-server playback',
     sortOrder: 18
@@ -435,6 +443,7 @@ export const DEFAULT_MIRROR_REGISTRY = [
     currentDomain: 'sflixgo.com',
     candidateDomains: ['sflixgo.com', 'sflix.to', 'sflix2.to'],
     searchTemplate: 'https://{domain}/search/{query}/',
+    episodeTemplate: 'https://{domain}/search/{query}-s{season}-e{episode}/',
     directUrlTemplate: 'https://{domain}/',
     statusNote: 'Active SFlixGo mirror',
     sortOrder: 19
@@ -575,6 +584,7 @@ export const DEFAULT_MIRROR_REGISTRY = [
     currentDomain: '1337x.ws',
     candidateDomains: ['1337x.ws', '1337x.to', '1337x.st', '1337x.so'],
     searchTemplate: 'https://{domain}/sort-search/{query}/seeders/desc/1/',
+    episodeTemplate: 'https://{domain}/sort-search/{query}+s{season_pad}e{episode_pad}/seeders/desc/1/',
     directUrlTemplate: 'https://{domain}/',
     statusNote: 'Active .ws mirror sorted by seeders',
     sortOrder: 29
@@ -583,8 +593,9 @@ export const DEFAULT_MIRROR_REGISTRY = [
 
 /**
  * Generates direct streaming & download mirror links dynamically using the current active mirror registry
+ * Supports title-level as well as granular episode-level links with {season} and {episode} interpolation.
  */
-export function generateDefaultMirrors(media = {}, registry = DEFAULT_MIRROR_REGISTRY) {
+export function generateDefaultMirrors(media = {}, registry = DEFAULT_MIRROR_REGISTRY, options = {}) {
   if (!media || !media.title) return [];
   const title = media.title;
   const slug = encodeURIComponent(
@@ -597,6 +608,22 @@ export function generateDefaultMirrors(media = {}, registry = DEFAULT_MIRROR_REG
   const mediaType = media.mediaType || 'Anime';
   const isMovie = mediaType === 'Movie' || media.isMovie || media.format === 'Movie';
 
+  const seasonNumber = options.seasonNumber != null ? Number(options.seasonNumber) : null;
+  const episodeNumber = options.episodeNumber != null ? Number(options.episodeNumber) : null;
+  const isEpisode = episodeNumber != null;
+  const seasonPad = seasonNumber != null ? String(seasonNumber).padStart(2, '0') : '01';
+  const epPad = episodeNumber != null ? String(episodeNumber).padStart(2, '0') : '01';
+
+  // Construct episode search query string (e.g. "Attack on Titan 01" or "Breaking Bad S01E01")
+  let epQuery = encTitle;
+  if (isEpisode) {
+    if (mediaType === 'Anime') {
+      epQuery = encodeURIComponent(`${title} ${episodeNumber}`);
+    } else {
+      epQuery = encodeURIComponent(`${title} S${seasonPad}E${epPad}`);
+    }
+  }
+
   return registry
     .filter((item) => {
       if (item.isEnabled === false || item.is_enabled === 0) return false;
@@ -608,15 +635,29 @@ export function generateDefaultMirrors(media = {}, registry = DEFAULT_MIRROR_REG
     .sort((a, b) => (a.sortOrder || a.sort_order || 0) - (b.sortOrder || b.sort_order || 0))
     .map((item) => {
       const domain = item.currentDomain || item.current_domain || 'example.com';
-      const template = item.searchTemplate || item.search_template || 'https://{domain}/search?q={query}';
-      const url = template
+      let template = item.searchTemplate || item.search_template || 'https://{domain}/search?q={query}';
+
+      if (isEpisode && (item.episodeTemplate || item.episode_template)) {
+        template = item.episodeTemplate || item.episode_template;
+      }
+
+      let url = template
         .replace(/{domain}/g, domain)
-        .replace(/{query}/g, encTitle)
-        .replace(/{slug}/g, slug);
+        .replace(/{slug}/g, slug)
+        .replace(/{season}/g, String(seasonNumber || 1))
+        .replace(/{season_pad}/g, seasonPad)
+        .replace(/{episode}/g, String(episodeNumber || 1))
+        .replace(/{episode_pad}/g, epPad);
+
+      if (url.includes('{query}')) {
+        const queryToUse = (isEpisode && !template.includes('{episode}')) ? epQuery : encTitle;
+        url = url.replace(/{query}/g, queryToUse);
+      }
 
       const idPrefix = item.id || 'mirror';
+      const epSuffix = isEpisode ? `_s${seasonNumber || 1}_e${episodeNumber}` : '';
       return {
-        id: `mirror_${idPrefix}_${slug || 'item'}`,
+        id: `mirror_${idPrefix}_${slug || 'item'}${epSuffix}`,
         sourceId: item.id,
         sourceName: item.name,
         url,
@@ -630,7 +671,10 @@ export function generateDefaultMirrors(media = {}, registry = DEFAULT_MIRROR_REG
         status: item.status || 'Working',
         latencyMs: item.latencyMs || item.latency_ms || 0,
         lastCheckedAt: item.lastCheckedAt || item.last_checked_at || null,
-        statusNote: item.statusNote || item.status_note || `Active domain: ${domain}`
+        statusNote: item.statusNote || item.status_note || `Active domain: ${domain}`,
+        isEpisodeLink: isEpisode,
+        seasonNumber: seasonNumber || null,
+        episodeNumber: episodeNumber || null
       };
     });
 }

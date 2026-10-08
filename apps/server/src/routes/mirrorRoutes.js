@@ -8,8 +8,10 @@ import {
 import {
   checkAllMirrors,
   checkMirrorSource,
-  probeDomain
+  probeDomain,
+  resolveEpisodeMirrors
 } from '../services/mirrorHealthService.js';
+import { generateDefaultMirrors, DEFAULT_MIRROR_REGISTRY } from '@omniwatch/shared';
 
 const router = express.Router();
 
@@ -24,6 +26,51 @@ router.get('/', async (req, res) => {
       success: true,
       count: mirrors.length,
       data: mirrors
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/mirrors/sources-for-episode
+ * Returns direct streaming and download mirror links for a specific episode
+ */
+router.get('/sources-for-episode', async (req, res) => {
+  try {
+    const { title, mediaType = 'Anime', season = 1, episode = 1, tmdbId, imdbId } = req.query;
+    if (!title || !title.trim()) {
+      return res.status(400).json({ success: false, error: 'Query parameter "title" is required' });
+    }
+
+    let mirrors = [];
+    try {
+      mirrors = await getAllMirrorSources();
+    } catch (e) {
+      mirrors = DEFAULT_MIRROR_REGISTRY;
+    }
+
+    const episodeSources = generateDefaultMirrors(
+      {
+        title: title.trim(),
+        mediaType,
+        tmdbId,
+        imdbId
+      },
+      mirrors && mirrors.length > 0 ? mirrors : DEFAULT_MIRROR_REGISTRY,
+      {
+        seasonNumber: parseInt(season, 10) || 1,
+        episodeNumber: parseInt(episode, 10) || 1
+      }
+    );
+
+    res.json({
+      success: true,
+      mediaTitle: title.trim(),
+      seasonNumber: parseInt(season, 10) || 1,
+      episodeNumber: parseInt(episode, 10) || 1,
+      count: episodeSources.length,
+      data: episodeSources
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

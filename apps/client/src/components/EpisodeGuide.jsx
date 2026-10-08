@@ -8,25 +8,98 @@ import {
   Play,
   ExternalLink,
   Download,
-  Check
+  Check,
+  Sparkles,
+  ChevronDown,
+  ArrowRight
 } from 'lucide-react';
+import { generateDefaultMirrors, DEFAULT_MIRROR_REGISTRY } from '@omniwatch/shared';
 
 export default function EpisodeGuide({
+  media = null,
+  mirrorRegistry = null,
   seasons = [],
   watchedEpisodes = [], // Array of { seasonNumber, episodeNumber }
   onToggleWatched,
   onBatchSeasonWatched,
   isCatalogItem = false,
   seasonsCompleted = 0,
-  onSetSeasonsCompleted = null
+  onSetSeasonsCompleted = null,
+  relatedMedia = [],
+  onSelectRelated = null
 }) {
   const [selectedSeasonIdx, setSelectedSeasonIdx] = useState(0);
+  const [openMirrorMenuEp, setOpenMirrorMenuEp] = useState(null);
+
+  // Franchise relations (prequels & sequels) for unified anime/show franchises
+  const effectiveRelated = (relatedMedia && relatedMedia.length > 0)
+    ? relatedMedia
+    : (media?.relatedMedia || []);
+
+  const prequels = effectiveRelated.filter((r) => r.relationType === 'PREQUEL');
+  const sequels = effectiveRelated.filter((r) => r.relationType === 'SEQUEL');
+  const hasFranchiseSeasons = prequels.length > 0 || sequels.length > 0;
 
   if (!seasons || seasons.length === 0) {
     return (
-      <div className="p-8 rounded-2xl bg-zinc-950/70 border border-zinc-800 text-center text-zinc-400 text-sm">
-        <Tv className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
-        No season or episode guide data available for this title.
+      <div className="space-y-4">
+        {/* If no local seasons, but franchise relations exist (e.g. standalone movie or OVA installment) */}
+        {hasFranchiseSeasons && (
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-red-950/40 via-zinc-900/80 to-zinc-950 border border-red-900/40 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-red-400">
+                <Sparkles className="w-3.5 h-3.5 text-red-500" />
+                <span>Franchise Seasons & Timeline</span>
+              </div>
+              <span className="text-[11px] text-zinc-400 font-medium">Switch seasons across franchise installments</span>
+            </div>
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {prequels.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => onSelectRelated && onSelectRelated(p)}
+                  className="shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 hover:border-red-500/50 text-xs font-medium transition-all group shadow-sm"
+                  title={`Navigate to prequel: ${p.title}`}
+                >
+                  <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-bold uppercase border border-zinc-700">
+                    Prequel
+                  </span>
+                  <span className="font-bold text-zinc-200 group-hover:text-white max-w-[130px] truncate">
+                    {p.title}
+                  </span>
+                </button>
+              ))}
+
+              <div className="shrink-0 flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-red-600 text-white text-xs font-black shadow-md border border-red-500">
+                <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-black/30 text-white uppercase font-black">
+                  Current
+                </span>
+                <span className="max-w-[140px] truncate">{media?.title || 'Current'}</span>
+              </div>
+
+              {sequels.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => onSelectRelated && onSelectRelated(s)}
+                  className="shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 hover:border-emerald-500/50 text-xs font-medium transition-all group shadow-sm"
+                  title={`Navigate to sequel: ${s.title}`}
+                >
+                  <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 font-bold uppercase">
+                    Next Season
+                  </span>
+                  <span className="font-bold text-zinc-200 group-hover:text-white max-w-[130px] truncate">
+                    {s.title}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="p-8 rounded-2xl bg-zinc-950/70 border border-zinc-800 text-center text-zinc-400 text-sm">
+          <Tv className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
+          No season or episode guide data available for this title.
+        </div>
       </div>
     );
   }
@@ -49,6 +122,62 @@ export default function EpisodeGuide({
 
   return (
     <div className="space-y-4">
+      {/* Franchise Chronology & Seasons Navigator (Unifies fragmented anime seasons & sequels) */}
+      {hasFranchiseSeasons && (
+        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-red-950/40 via-zinc-900/80 to-zinc-950 border border-red-900/40 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-red-400">
+              <Sparkles className="w-3.5 h-3.5 text-red-500" />
+              <span>Franchise Seasons & Timeline</span>
+            </div>
+            <span className="text-[11px] text-zinc-400 font-medium">Switch seasons across franchise installments</span>
+          </div>
+
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {prequels.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => onSelectRelated && onSelectRelated(p)}
+                className="shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 hover:border-red-500/50 text-xs font-medium transition-all group shadow-sm"
+                title={`Navigate to prequel: ${p.title}`}
+              >
+                <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-bold uppercase border border-zinc-700">
+                  Prequel
+                </span>
+                <span className="font-bold text-zinc-200 group-hover:text-white max-w-[130px] truncate">
+                  {p.title}
+                </span>
+              </button>
+            ))}
+
+            {/* Current Installment Badge */}
+            <div className="shrink-0 flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-red-600 text-white text-xs font-black shadow-md border border-red-500">
+              <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-black/30 text-white uppercase font-black">
+                Current
+              </span>
+              <span className="max-w-[140px] truncate">{media?.title || 'Current Season'}</span>
+            </div>
+
+            {sequels.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => onSelectRelated && onSelectRelated(s)}
+                className="shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 hover:border-emerald-500/50 text-xs font-medium transition-all group shadow-sm"
+                title={`Navigate to sequel: ${s.title}`}
+              >
+                <ArrowRight className="w-3 h-3 text-emerald-400" />
+                <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 font-bold uppercase">
+                  Next Season
+                </span>
+                <span className="font-bold text-zinc-200 group-hover:text-white max-w-[130px] truncate">
+                  {s.title}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Season Selector Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-3">
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 sm:pb-0">
@@ -157,6 +286,32 @@ export default function EpisodeGuide({
           episodes.map((ep) => {
             const watched = isEpWatched(ep.episodeNumber);
 
+            // Compute dynamic streaming & download mirror links for this episode
+            const epMirrors = (media && media.title)
+              ? generateDefaultMirrors(media, mirrorRegistry || DEFAULT_MIRROR_REGISTRY, {
+                  seasonNumber: seasonNum,
+                  episodeNumber: ep.episodeNumber
+                })
+              : [];
+
+            const episodeSources = (Array.isArray(ep.links) && ep.links.length > 0)
+              ? ep.links.map((link, idx) => ({
+                  id: `ep_link_${idx}`,
+                  sourceName: idx === 0 ? 'Primary Stream' : 'Download',
+                  url: link,
+                  domain: (() => { try { return new URL(link).hostname; } catch(e) { return 'mirror'; } })(),
+                  type: idx === 0 ? 'Stream' : 'Download',
+                  isWorking: true,
+                  quality: '1080p HD'
+                }))
+              : epMirrors;
+
+            const streamSources = episodeSources.filter((s) => s.type === 'Stream' && s.isWorking !== false);
+            const dlSources = episodeSources.filter((s) => s.type === 'Download' && s.isWorking !== false);
+            const primaryStream = streamSources[0] || episodeSources[0];
+            const primaryDl = dlSources[0];
+            const isMenuOpen = openMirrorMenuEp === ep.episodeNumber;
+
             return (
               <div
                 key={ep.episodeNumber}
@@ -232,31 +387,91 @@ export default function EpisodeGuide({
                     </span>
                   )}
 
-                  {/* Direct Episode Streaming Mirrors */}
-                  {Array.isArray(ep.links) && ep.links.length > 0 && (
-                    <div className="flex items-center gap-1.5 ml-auto">
-                      <a
-                        href={ep.links[0]}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-red-600 hover:bg-red-500 text-white shadow-sm transition-all hover:scale-105"
-                        title="Stream episode directly"
-                      >
-                        <Play className="w-3 h-3 fill-white" />
-                        <span>Stream Ep</span>
-                        <ExternalLink className="w-3 h-3 ml-0.5" />
-                      </a>
-                      {ep.links[1] && (
+                  {/* Direct Episode Streaming Mirrors & Source Selector */}
+                  {episodeSources.length > 0 && (
+                    <div className="relative flex items-center gap-1.5 ml-auto">
+                      {primaryStream && (
                         <a
-                          href={ep.links[1]}
+                          href={primaryStream.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors"
-                          title="Download episode mirror"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-500 text-white shadow-md shadow-red-950/50 transition-all hover:scale-105"
+                          title={`Stream Episode ${ep.episodeNumber} via ${primaryStream.sourceName} (${primaryStream.domain})`}
+                        >
+                          <Play className="w-3.5 h-3.5 fill-white" />
+                          <span>Stream Ep {ep.episodeNumber}</span>
+                          <ExternalLink className="w-3 h-3 ml-0.5 opacity-80" />
+                        </a>
+                      )}
+
+                      {/* Quick Mirror Picker Toggle Button */}
+                      {episodeSources.length > 1 && (
+                        <button
+                          onClick={() => setOpenMirrorMenuEp(isMenuOpen ? null : ep.episodeNumber)}
+                          className={`px-2 py-1.5 rounded-xl text-xs font-semibold border transition-colors flex items-center gap-1 ${
+                            isMenuOpen
+                              ? 'bg-zinc-800 text-white border-zinc-600'
+                              : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border-zinc-800 hover:bg-zinc-800'
+                          }`}
+                          title="Choose streaming mirror source"
+                        >
+                          <span>Mirrors</span>
+                          <ChevronDown className={`w-3 h-3 transition-transform ${isMenuOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                      )}
+
+                      {primaryDl && (
+                        <a
+                          href={primaryDl.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 hover:border-zinc-700 transition-colors"
+                          title={`Direct torrent/download for Episode ${ep.episodeNumber}`}
                         >
                           <Download className="w-3 h-3" />
                           <span>DL</span>
                         </a>
+                      )}
+
+                      {/* Dropdown Menu of Available Mirrors */}
+                      {isMenuOpen && (
+                        <div className="absolute right-0 top-full mt-2 w-72 p-2 rounded-2xl bg-zinc-950/95 border border-zinc-800 shadow-2xl backdrop-blur-md z-30 space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
+                          <div className="px-2 py-1 flex items-center justify-between border-b border-zinc-800/80 text-[11px] font-bold text-zinc-400 uppercase">
+                            <span>Available Mirrors (Ep {ep.episodeNumber})</span>
+                            <span className="text-zinc-500 font-normal">{episodeSources.length} sources</span>
+                          </div>
+                          <div className="max-h-48 overflow-y-auto space-y-1 pr-0.5 scrollbar-thin">
+                            {episodeSources.map((s) => (
+                              <a
+                                key={s.id}
+                                href={s.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={() => setOpenMirrorMenuEp(null)}
+                                className="flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs hover:bg-zinc-900 border border-transparent hover:border-zinc-800 transition-colors group"
+                              >
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-white group-hover:text-red-400 transition-colors">
+                                    {s.sourceName}
+                                  </span>
+                                  <span className="text-[10px] text-zinc-500">
+                                    {s.domain} • {s.quality}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-extrabold uppercase ${
+                                    s.type === 'Download'
+                                      ? 'bg-blue-950/60 text-blue-400 border border-blue-900/50'
+                                      : 'bg-emerald-950/60 text-emerald-400 border border-emerald-900/50'
+                                  }`}>
+                                    {s.type}
+                                  </span>
+                                  <ExternalLink className="w-3 h-3 text-zinc-500 group-hover:text-white" />
+                                </div>
+                              </a>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}
