@@ -17,3 +17,20 @@ scratch/
 .neon
 .agent
 .gemini
+.gsd/
+adapters/
+scripts/
+GSD-STYLE.md
+PROJECT_RULES.md
+VERSION
+model_capabilities.yaml
+.agents/agents/
+.agents/skills/*
+!.agents/skills/neon*
+
+# IDE & Editor
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+Thumbs.db

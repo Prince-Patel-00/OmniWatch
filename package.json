@@ -18,5 +18,8 @@
   "devDependencies": {
     "@neon/config": "^1.8.4",
     "concurrently": "^9.1.2"
+  },
+  "dependencies": {
+    "gsd-pi": "^3.0.0"
   }
 }
