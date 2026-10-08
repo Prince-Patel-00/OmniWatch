@@ -8,6 +8,7 @@ import TrailerModal from './components/TrailerModal.jsx';
 import StatsDashboard from './components/StatsDashboard.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
 import BackupModal from './components/BackupModal.jsx';
+import AuthModal from './components/AuthModal.jsx';
 import Toast from './components/Toast.jsx';
 import Pagination from './components/Pagination.jsx';
 
@@ -25,7 +26,10 @@ import {
   toggleEpisodeProgress,
   batchSeasonProgress,
   updateSeasonsCompleted,
-  getSystemStatus
+  getSystemStatus,
+  getMe,
+  logout,
+  getStoredUser
 } from './services/api.js';
 import { normalizeTitle } from '@omniwatch/shared';
 
@@ -76,10 +80,33 @@ export default function App() {
   const [trailerModal, setTrailerModal] = useState({ isOpen: false, videoKey: '', title: '' });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(() => getStoredUser());
   const [toast, setToast] = useState(null);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
+  };
+
+  // Sync auth state with server on boot
+  useEffect(() => {
+    getMe().then((user) => {
+      if (user) setCurrentUser(user);
+    });
+  }, []);
+
+  const handleAuthSuccess = (user) => {
+    setCurrentUser(user);
+    refreshCatalogVault();
+    loadContent();
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    setCurrentUser(null);
+    showToast('Signed out of personal catalog', 'info');
+    refreshCatalogVault();
+    loadContent();
   };
 
   // Debounce search input by 300ms
@@ -719,6 +746,9 @@ export default function App() {
         watchingCount={stats?.byStatus?.['Watching'] || 0}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenBackup={() => setBackupOpen(true)}
+        currentUser={currentUser}
+        onOpenAuth={() => setAuthModalOpen(true)}
+        onLogout={handleLogout}
       />
 
       {/* Main Container */}
@@ -973,6 +1003,15 @@ export default function App() {
           isOpen={backupOpen}
           onClose={() => setBackupOpen(false)}
           onRefreshData={refreshCatalogVault}
+          onShowToast={showToast}
+        />
+      )}
+
+      {authModalOpen && (
+        <AuthModal
+          isOpen={authModalOpen}
+          onClose={() => setAuthModalOpen(false)}
+          onAuthSuccess={handleAuthSuccess}
           onShowToast={showToast}
         />
       )}

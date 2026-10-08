@@ -10,7 +10,9 @@ import {
   Download,
   Sparkles,
   User,
-  SlidersHorizontal
+  SlidersHorizontal,
+  LogIn,
+  LogOut
 } from 'lucide-react';
 
 export default function Navbar({
@@ -25,10 +27,14 @@ export default function Navbar({
   catalogCount = 0,
   watchingCount = 0,
   onOpenSettings,
-  onOpenBackup
+  onOpenBackup,
+  currentUser = null,
+  onOpenAuth,
+  onLogout
 }) {
   const searchInputRef = useRef(null);
   const [showModeMenu, setShowModeMenu] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   // Keyboard shortcut: "/" to focus search bar, "Escape" to clear
   useEffect(() => {
@@ -235,7 +241,7 @@ export default function Navbar({
           </div>
         </div>
 
-        {/* Right Actions: Backup & Settings */}
+        {/* Right Actions: Backup, Settings & Auth */}
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={onOpenBackup}
@@ -254,6 +260,52 @@ export default function Navbar({
             <Settings className="w-4 h-4" />
             <span className="hidden sm:inline">Settings</span>
           </button>
+
+          {/* User Profile / Sign In */}
+          {currentUser ? (
+            <div className="relative">
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center gap-2 p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white transition-all shadow-sm"
+                title={`Logged in as ${currentUser.email}`}
+              >
+                <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-red-600 to-rose-500 flex items-center justify-center text-[10px] font-black text-white shadow-inner">
+                  {(currentUser.displayName || currentUser.email || 'U')[0].toUpperCase()}
+                </div>
+                <span className="text-xs font-bold max-w-[100px] truncate hidden md:inline">
+                  {currentUser.displayName || currentUser.email.split('@')[0]}
+                </span>
+              </button>
+
+              {showUserMenu && (
+                <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-zinc-950 border border-zinc-800 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95">
+                  <div className="px-3 py-2 border-b border-zinc-800/80 mb-1">
+                    <p className="text-xs font-bold text-white truncate">{currentUser.displayName || 'OmniWatch User'}</p>
+                    <p className="text-[11px] text-zinc-400 truncate">{currentUser.email}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      onLogout?.();
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-red-400 hover:bg-red-950/40 rounded-xl transition-colors"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={onOpenAuth}
+              title="Sign in to isolated personal catalog"
+              className="p-2 sm:px-3 sm:py-1.5 flex items-center gap-1.5 text-xs font-bold rounded-xl bg-red-600/15 text-red-400 hover:bg-red-600 hover:text-white border border-red-500/30 transition-all shadow-sm"
+            >
+              <LogIn className="w-4 h-4" />
+              <span className="hidden sm:inline">Sign In</span>
+            </button>
+          )}
         </div>
 
       </div>

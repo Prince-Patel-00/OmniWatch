@@ -6,6 +6,122 @@
 const BASE_GLOBAL = '/api/global';
 const BASE_CATALOG = '/api/catalog';
 const BASE_SYSTEM = '/api/system';
+const BASE_AUTH = '/api/auth';
+
+const TOKEN_KEY = 'omniwatch_auth_token';
+const USER_KEY = 'omniwatch_auth_user';
+
+// -------------------------------------------------------------
+// Authentication & Session Helpers
+// -------------------------------------------------------------
+
+export function getStoredToken() {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch (e) {
+    return null;
+  }
+}
+
+export function setStoredToken(token) {
+  try {
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token);
+    } else {
+      localStorage.removeItem(TOKEN_KEY);
+    }
+  } catch (e) {}
+}
+
+export function getStoredUser() {
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+export function setStoredUser(user) {
+  try {
+    if (user) {
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+    } else {
+      localStorage.removeItem(USER_KEY);
+    }
+  } catch (e) {}
+}
+
+export function clearAuth() {
+  setStoredToken(null);
+  setStoredUser(null);
+}
+
+export async function authFetch(url, options = {}) {
+  const token = getStoredToken();
+  const headers = { ...options.headers };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return fetch(url, { ...options, headers });
+}
+
+export async function login(email, password) {
+  const res = await fetch(`${BASE_AUTH}/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Login failed');
+  }
+  setStoredToken(data.token);
+  setStoredUser(data.user);
+  return data;
+}
+
+export async function register(email, password, displayName) {
+  const res = await fetch(`${BASE_AUTH}/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, displayName })
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Registration failed');
+  }
+  setStoredToken(data.token);
+  setStoredUser(data.user);
+  return data;
+}
+
+export async function getMe() {
+  const token = getStoredToken();
+  if (!token) return null;
+  try {
+    const res = await authFetch(`${BASE_AUTH}/me`);
+    if (!res.ok) {
+      clearAuth();
+      return null;
+    }
+    const data = await res.json();
+    if (data.success && data.user) {
+      setStoredUser(data.user);
+      return data.user;
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+export async function logout() {
+  try {
+    await authFetch(`${BASE_AUTH}/logout`, { method: 'POST' });
+  } catch (e) {}
+  clearAuth();
+}
 
 // -------------------------------------------------------------
 // Global Discovery API
@@ -124,7 +240,7 @@ export async function getCatalog(params = {}) {
   if (params.limit) q.set('limit', params.limit);
   if (params.excludeIds) q.set('excludeIds', params.excludeIds);
 
-  const res = await fetch(`${BASE_CATALOG}?${q.toString()}`);
+  const res = await authFetch(`${BASE_CATALOG}?${q.toString()}`);
   if (!res.ok) throw new Error(`Failed to load personal catalog: ${res.statusText}`);
   return res.json();
 }
@@ -132,25 +248,25 @@ export async function getCatalog(params = {}) {
 export async function getCatalogCharacters(params = {}) {
   const q = new URLSearchParams();
   if (params.limit) q.set('limit', params.limit);
-  const res = await fetch(`${BASE_CATALOG}/characters?${q.toString()}`);
+  const res = await authFetch(`${BASE_CATALOG}/characters?${q.toString()}`);
   if (!res.ok) throw new Error(`Failed to load catalog characters`);
   return res.json();
 }
 
 export async function getCatalogStats() {
-  const res = await fetch(`${BASE_CATALOG}/stats`);
+  const res = await authFetch(`${BASE_CATALOG}/stats`);
   if (!res.ok) throw new Error(`Failed to load catalog statistics`);
   return res.json();
 }
 
 export async function checkInCatalog(canonicalId) {
-  const res = await fetch(`${BASE_CATALOG}/check/${encodeURIComponent(canonicalId)}`);
+  const res = await authFetch(`${BASE_CATALOG}/check/${encodeURIComponent(canonicalId)}`);
   if (!res.ok) return { success: false, inCatalog: false };
   return res.json();
 }
 
 export async function saveToCatalog(itemData) {
-  const res = await fetch(BASE_CATALOG, {
+  const res = await authFetch(BASE_CATALOG, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(itemData)
@@ -160,7 +276,7 @@ export async function saveToCatalog(itemData) {
 }
 
 export async function updateCatalogItem(id, updateData) {
-  const res = await fetch(`${BASE_CATALOG}/${encodeURIComponent(id)}`, {
+  const res = await authFetch(`${BASE_CATALOG}/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updateData)
@@ -170,7 +286,7 @@ export async function updateCatalogItem(id, updateData) {
 }
 
 export async function deleteFromCatalog(id) {
-  const res = await fetch(`${BASE_CATALOG}/${encodeURIComponent(id)}`, {
+  const res = await authFetch(`${BASE_CATALOG}/${encodeURIComponent(id)}`, {
     method: 'DELETE'
   });
   if (!res.ok) throw new Error(`Failed to remove item from catalog`);
@@ -178,7 +294,7 @@ export async function deleteFromCatalog(id) {
 }
 
 export async function toggleEpisodeProgress(catalogItemId, { seasonNumber = 1, episodeNumber, isWatched = true }) {
-  const res = await fetch(`${BASE_CATALOG}/${encodeURIComponent(catalogItemId)}/progress`, {
+  const res = await authFetch(`${BASE_CATALOG}/${encodeURIComponent(catalogItemId)}/progress`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ seasonNumber, episodeNumber, isWatched })
@@ -188,7 +304,7 @@ export async function toggleEpisodeProgress(catalogItemId, { seasonNumber = 1, e
 }
 
 export async function batchSeasonProgress(catalogItemId, { seasonNumber = 1, episodeCount = 12, isWatched = true }) {
-  const res = await fetch(`${BASE_CATALOG}/${encodeURIComponent(catalogItemId)}/batch-progress`, {
+  const res = await authFetch(`${BASE_CATALOG}/${encodeURIComponent(catalogItemId)}/batch-progress`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ seasonNumber, episodeCount, isWatched })
@@ -198,7 +314,7 @@ export async function batchSeasonProgress(catalogItemId, { seasonNumber = 1, epi
 }
 
 export async function updateSeasonsCompleted(catalogItemId, { seasonsCompleted, userStatus, syncEpisodes = true, currentSeason, totalSeasons }) {
-  const res = await fetch(`${BASE_CATALOG}/${encodeURIComponent(catalogItemId)}/seasons`, {
+  const res = await authFetch(`${BASE_CATALOG}/${encodeURIComponent(catalogItemId)}/seasons`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ seasonsCompleted, userStatus, syncEpisodes, currentSeason, totalSeasons })
@@ -208,7 +324,7 @@ export async function updateSeasonsCompleted(catalogItemId, { seasonsCompleted, 
 }
 
 export async function importCatalogBackup(backupData) {
-  const res = await fetch(`${BASE_CATALOG}/backup/import`, {
+  const res = await authFetch(`${BASE_CATALOG}/backup/import`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(backupData)

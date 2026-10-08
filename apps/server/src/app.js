@@ -21,6 +21,7 @@ if (typeof process.loadEnvFile === 'function') {
 }
 
 import { initDB, isNeon } from './db.js';
+import authRoutes from './routes/authRoutes.js';
 import globalRoutes from './routes/globalRoutes.js';
 import catalogRoutes from './routes/catalogRoutes.js';
 import systemRoutes from './routes/systemRoutes.js';
@@ -57,6 +58,7 @@ app.use(async (req, res, next) => {
 });
 
 // API Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/global', globalRoutes);
 app.use('/api/catalog', catalogRoutes);
 app.use('/api/system', systemRoutes);

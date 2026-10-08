@@ -14,8 +14,12 @@ import {
   getCanonicalMedia,
   getCatalogCharacters
 } from '../db.js';
+import { authMiddleware } from '../auth.js';
 
 const router = express.Router();
+
+// Apply auth middleware to resolve authenticated user or fallback
+router.use(authMiddleware);
 
 // GET /api/catalog
 router.get('/', async (req, res) => {
@@ -35,7 +39,8 @@ router.get('/', async (req, res) => {
       animeFormat: animeFormat || format || 'All',
       page: pageNum,
       limit: limitNum,
-      excludeIds
+      excludeIds,
+      userId: req.userId
     });
     res.json({
       success: true,
@@ -66,7 +71,7 @@ router.get('/characters', async (req, res) => {
 // GET /api/catalog/stats
 router.get('/stats', async (req, res) => {
   try {
-    const stats = await getCatalogStats();
+    const stats = await getCatalogStats(req.userId);
     res.json({ success: true, data: stats });
   } catch (err) {
     console.error('Error fetching catalog stats:', err);
@@ -78,7 +83,7 @@ router.get('/stats', async (req, res) => {
 router.get('/check/:canonicalId', async (req, res) => {
   try {
     const { canonicalId } = req.params;
-    const item = await getCatalogItemByCanonicalId(canonicalId);
+    const item = await getCatalogItemByCanonicalId(canonicalId, req.userId);
     res.json({
       success: true,
       inCatalog: Boolean(item),
@@ -117,7 +122,7 @@ router.post('/backup/import', async (req, res) => {
 // GET /api/catalog/:id
 router.get('/:id', async (req, res) => {
   try {
-    const item = await getCatalogItem(req.params.id);
+    const item = await getCatalogItem(req.params.id, req.userId);
     if (!item) {
       return res.status(404).json({ success: false, error: 'Catalog item not found' });
     }
@@ -148,7 +153,7 @@ router.post('/', async (req, res) => {
       }
     }
 
-    const saved = await upsertCatalogItem(payload);
+    const saved = await upsertCatalogItem({ ...payload, userId: req.userId }, req.userId);
     res.json({ success: true, data: saved, message: `Saved "${saved.title}" to catalog.` });
   } catch (err) {
     console.error('Error saving to catalog:', err);
@@ -160,7 +165,7 @@ router.post('/', async (req, res) => {
 router.patch('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const existing = await getCatalogItem(id);
+    const existing = await getCatalogItem(id, req.userId);
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Catalog item not found' });
     }
@@ -168,8 +173,9 @@ router.patch('/:id', async (req, res) => {
     const updated = await upsertCatalogItem({
       ...existing,
       ...req.body,
-      id
-    });
+      id,
+      userId: req.userId
+    }, req.userId);
 
     res.json({ success: true, data: updated, message: 'Updated catalog item.' });
   } catch (err) {
@@ -182,7 +188,7 @@ router.patch('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const ok = await deleteCatalogItem(id);
+    const ok = await deleteCatalogItem(id, req.userId);
     if (!ok) {
       return res.status(404).json({ success: false, error: 'Item not found in catalog.' });
     }
@@ -203,7 +209,7 @@ router.post('/:id/progress', async (req, res) => {
       return res.status(400).json({ success: false, error: 'episodeNumber is required.' });
     }
 
-    const updated = await toggleEpisodeProgress(id, parseInt(seasonNumber, 10), parseInt(episodeNumber, 10), Boolean(isWatched));
+    const updated = await toggleEpisodeProgress(id, parseInt(seasonNumber, 10), parseInt(episodeNumber, 10), Boolean(isWatched), req.userId);
     res.json({ success: true, data: updated });
   } catch (err) {
     console.error('Error updating episode progress:', err);
@@ -221,7 +227,8 @@ router.post('/:id/batch-progress', async (req, res) => {
       id,
       parseInt(seasonNumber, 10),
       parseInt(episodeCount, 10),
-      Boolean(isWatched)
+      Boolean(isWatched),
+      req.userId
     );
 
     res.json({ success: true, data: updated });
@@ -248,7 +255,8 @@ router.post('/:id/seasons', async (req, res) => {
         userStatus,
         syncEpisodes: Boolean(syncEpisodes),
         currentSeason: currentSeason ? parseInt(currentSeason, 10) : undefined,
-        totalSeasons: totalSeasons ? parseInt(totalSeasons, 10) : undefined
+        totalSeasons: totalSeasons ? parseInt(totalSeasons, 10) : undefined,
+        userId: req.userId
       }
     );
 

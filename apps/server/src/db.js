@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { generateDefaultMirrors, DEFAULT_MIRROR_REGISTRY } from '@omniwatch/shared';
 import * as neonDB from './db_neon.js';
+import { hashPassword, DEFAULT_USER_ID, DEFAULT_USER_EMAIL } from './auth.js';
 
 export function isNeon() {
   return Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL);
@@ -35,6 +36,16 @@ export function getDB() {
 
 function initSchema(db) {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      display_name TEXT,
+      created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+      updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
     CREATE TABLE IF NOT EXISTS cached_media (
       id TEXT PRIMARY KEY,
       media_type TEXT NOT NULL,
@@ -208,6 +219,39 @@ function initSchema(db) {
     if (!hasTotalSeasons) {
       db.exec("ALTER TABLE catalog_items ADD COLUMN total_seasons INTEGER DEFAULT 1;");
     }
+
+    const hasUserId = catInfo.some(col => col.name === 'user_id');
+    if (!hasUserId) {
+      db.exec(`ALTER TABLE catalog_items ADD COLUMN user_id TEXT DEFAULT '${DEFAULT_USER_ID}';`);
+    }
+
+    const progInfo = db.prepare('PRAGMA table_info(catalog_episode_progress);').all();
+    const hasProgUserId = progInfo.some(col => col.name === 'user_id');
+    if (!hasProgUserId) {
+      db.exec(`ALTER TABLE catalog_episode_progress ADD COLUMN user_id TEXT DEFAULT '${DEFAULT_USER_ID}';`);
+    }
+
+    // Seed default user makisanis106@gmail.com if not exists
+    const existingUser = db.prepare('SELECT id FROM users WHERE email = ?').get(DEFAULT_USER_EMAIL);
+    if (!existingUser) {
+      const seedHash = hashPassword('OutCast106');
+      const now = new Date().toISOString();
+      db.prepare(`
+        INSERT INTO users (id, email, password_hash, display_name, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(DEFAULT_USER_ID, DEFAULT_USER_EMAIL, seedHash, 'Maki Sanis', now, now);
+    }
+
+    // Migrate all unassigned legacy catalog records to default user
+    db.prepare('UPDATE catalog_items SET user_id = ? WHERE user_id IS NULL OR user_id = \'\'').run(DEFAULT_USER_ID);
+    db.prepare('UPDATE catalog_episode_progress SET user_id = ? WHERE user_id IS NULL OR user_id = \'\'').run(DEFAULT_USER_ID);
+
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_catalog_user ON catalog_items(user_id);
+      CREATE INDEX IF NOT EXISTS idx_catalog_user_status ON catalog_items(user_id, user_status);
+      CREATE INDEX IF NOT EXISTS idx_catalog_user_canonical ON catalog_items(user_id, canonical_id);
+      CREATE INDEX IF NOT EXISTS idx_progress_user ON catalog_episode_progress(user_id);
+    `);
 
     // Keep all anime inside Anime tab: fix any anime movies mistakenly saved as media_type = 'Movie'
     db.exec(`
@@ -961,10 +1005,16 @@ export function getCachedTrending(type = 'All', limit = 24, opts = {}) {
 
 export function getCatalogItems(opts = {}) {
   if (isNeon()) return neonDB.getCatalogItems(opts);
-  const { status = 'All', type = 'All', sort = 'updated_desc', favoriteOnly = false, genre = 'All', search = '', animeFormat = 'All', format = 'All', character = '', mainCharOnly = false, page, limit } = opts;
+  const { status = 'All', type = 'All', sort = 'updated_desc', favoriteOnly = false, genre = 'All', search = '', animeFormat = 'All', format = 'All', character = '', mainCharOnly = false, page, limit, userId } = opts;
   const db = getDB();
   let sql = 'SELECT * FROM catalog_items WHERE 1=1';
   const params = [];
+
+  const targetUserId = userId || DEFAULT_USER_ID;
+  if (targetUserId !== 'all') {
+    sql += ' AND (user_id = ? OR user_id IS NULL)';
+    params.push(targetUserId);
+  }
 
   if (status && status !== 'All') {
     if (status === 'Rewatching') {
@@ -1051,29 +1101,32 @@ export function getCatalogItems(opts = {}) {
   return rows.map(r => hydrateCatalogItem(db, r));
 }
 
-export function getCatalogItem(id) {
-  if (isNeon()) return neonDB.getCatalogItem(id);
+export function getCatalogItem(id, userId) {
+  if (isNeon()) return neonDB.getCatalogItem(id, userId);
   const db = getDB();
-  const row = db.prepare('SELECT * FROM catalog_items WHERE id = ?').get(id);
+  const targetUserId = userId || DEFAULT_USER_ID;
+  const row = db.prepare('SELECT * FROM catalog_items WHERE id = ? AND (user_id = ? OR user_id IS NULL)').get(id, targetUserId);
   if (!row) return null;
-  return hydrateCatalogItem(db, row);
+  return hydrateCatalogItem(db, row, targetUserId);
 }
 
-export function getCatalogItemByCanonicalId(canonicalId) {
-  if (isNeon()) return neonDB.getCatalogItemByCanonicalId(canonicalId);
+export function getCatalogItemByCanonicalId(canonicalId, userId) {
+  if (isNeon()) return neonDB.getCatalogItemByCanonicalId(canonicalId, userId);
   const db = getDB();
-  const row = db.prepare('SELECT * FROM catalog_items WHERE canonical_id = ?').get(canonicalId);
+  const targetUserId = userId || DEFAULT_USER_ID;
+  const row = db.prepare('SELECT * FROM catalog_items WHERE canonical_id = ? AND (user_id = ? OR user_id IS NULL)').get(canonicalId, targetUserId);
   if (!row) return null;
-  return hydrateCatalogItem(db, row);
+  return hydrateCatalogItem(db, row, targetUserId);
 }
 
-function hydrateCatalogItem(db, row) {
+function hydrateCatalogItem(db, row, userId) {
+  const targetUserId = userId || row.user_id || DEFAULT_USER_ID;
   const progressRows = db.prepare(`
     SELECT season_number, episode_number, is_watched, watched_at 
     FROM catalog_episode_progress 
-    WHERE catalog_item_id = ? AND is_watched = 1
+    WHERE catalog_item_id = ? AND (user_id = ? OR user_id IS NULL) AND is_watched = 1
     ORDER BY season_number ASC, episode_number ASC
-  `).all(row.id);
+  `).all(row.id, targetUserId);
 
   const isMovie = row.format === 'Movie' || row.media_type === 'Movie';
   const format = row.format || (isMovie ? 'Movie' : 'Series');
@@ -1154,16 +1207,17 @@ function hydrateCatalogItem(db, row) {
   };
 }
 
-export function upsertCatalogItem(item) {
-  if (isNeon()) return neonDB.upsertCatalogItem(item);
+export function upsertCatalogItem(item, userId) {
+  if (isNeon()) return neonDB.upsertCatalogItem(item, userId);
   const db = getDB();
   const now = new Date().toISOString();
+  const targetUserId = userId || item.userId || DEFAULT_USER_ID;
 
   let existing = null;
   if (item.id) {
-    existing = db.prepare('SELECT * FROM catalog_items WHERE id = ?').get(item.id);
+    existing = db.prepare('SELECT * FROM catalog_items WHERE id = ? AND (user_id = ? OR user_id IS NULL)').get(item.id, targetUserId);
   } else if (item.canonicalId) {
-    existing = db.prepare('SELECT * FROM catalog_items WHERE canonical_id = ?').get(item.canonicalId);
+    existing = db.prepare('SELECT * FROM catalog_items WHERE canonical_id = ? AND (user_id = ? OR user_id IS NULL)').get(item.canonicalId, targetUserId);
   }
 
   const id = existing ? existing.id : (item.id || `cat_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`);
@@ -1208,17 +1262,18 @@ export function upsertCatalogItem(item) {
 
   const stmt = db.prepare(`
     INSERT INTO catalog_items (
-      id, canonical_id, media_type, format, title, poster_url, backdrop_url, release_year,
+      id, canonical_id, user_id, media_type, format, title, poster_url, backdrop_url, release_year,
       user_status, is_favorite, is_rewatching, user_rating, current_season, seasons_completed,
       total_seasons, current_episode, total_episodes, notes, tags_json, started_at, completed_at,
       last_watched_at, created_at, updated_at
     ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?, ?, ?,
       ?, ?, ?
     )
     ON CONFLICT(id) DO UPDATE SET
+      user_id = COALESCE(excluded.user_id, catalog_items.user_id),
       media_type = excluded.media_type,
       format = excluded.format,
       user_status = excluded.user_status,
@@ -1257,6 +1312,7 @@ export function upsertCatalogItem(item) {
   stmt.run(
     id,
     item.canonicalId,
+    targetUserId,
     mediaType,
     format,
     item.title,
@@ -1281,28 +1337,30 @@ export function upsertCatalogItem(item) {
     now
   );
 
-  return getCatalogItem(id);
+  return getCatalogItem(id, targetUserId);
 }
 
-export function deleteCatalogItem(id) {
-  if (isNeon()) return neonDB.deleteCatalogItem(id);
+export function deleteCatalogItem(id, userId) {
+  if (isNeon()) return neonDB.deleteCatalogItem(id, userId);
   const db = getDB();
-  db.prepare('DELETE FROM catalog_episode_progress WHERE catalog_item_id = ?').run(id);
-  const res = db.prepare('DELETE FROM catalog_items WHERE id = ?').run(id);
+  const targetUserId = userId || DEFAULT_USER_ID;
+  db.prepare('DELETE FROM catalog_episode_progress WHERE catalog_item_id = ? AND (user_id = ? OR user_id IS NULL)').run(id, targetUserId);
+  const res = db.prepare('DELETE FROM catalog_items WHERE id = ? AND (user_id = ? OR user_id IS NULL)').run(id, targetUserId);
   return res.changes > 0;
 }
 
-export function toggleEpisodeProgress(catalogItemId, seasonNumber, episodeNumber, isWatched = true) {
-  if (isNeon()) return neonDB.toggleEpisodeProgress(catalogItemId, seasonNumber, episodeNumber, isWatched);
+export function toggleEpisodeProgress(catalogItemId, seasonNumber, episodeNumber, isWatched = true, userId) {
+  if (isNeon()) return neonDB.toggleEpisodeProgress(catalogItemId, seasonNumber, episodeNumber, isWatched, userId);
   const db = getDB();
   const now = new Date().toISOString();
+  const targetUserId = userId || DEFAULT_USER_ID;
 
   if (isWatched) {
     db.prepare(`
       INSERT OR REPLACE INTO catalog_episode_progress (
-        catalog_item_id, season_number, episode_number, is_watched, watched_at
-      ) VALUES (?, ?, ?, 1, ?)
-    `).run(catalogItemId, seasonNumber, episodeNumber, now);
+        user_id, catalog_item_id, season_number, episode_number, is_watched, watched_at
+      ) VALUES (?, ?, ?, ?, 1, ?)
+    `).run(targetUserId, catalogItemId, seasonNumber, episodeNumber, now);
 
     db.prepare(`
       UPDATE catalog_items
@@ -1310,20 +1368,20 @@ export function toggleEpisodeProgress(catalogItemId, seasonNumber, episodeNumber
           current_episode = MAX(current_episode, ?),
           last_watched_at = ?,
           updated_at = ?
-      WHERE id = ?
-    `).run(seasonNumber, episodeNumber, now, now, catalogItemId);
+      WHERE id = ? AND (user_id = ? OR user_id IS NULL)
+    `).run(seasonNumber, episodeNumber, now, now, catalogItemId, targetUserId);
   } else {
     db.prepare(`
       DELETE FROM catalog_episode_progress 
-      WHERE catalog_item_id = ? AND season_number = ? AND episode_number = ?
-    `).run(catalogItemId, seasonNumber, episodeNumber);
+      WHERE catalog_item_id = ? AND season_number = ? AND episode_number = ? AND (user_id = ? OR user_id IS NULL)
+    `).run(catalogItemId, seasonNumber, episodeNumber, targetUserId);
 
     // Recalculate remaining highest episode
     const maxProg = db.prepare(`
       SELECT MAX(episode_number) as max_ep, MAX(season_number) as max_season 
       FROM catalog_episode_progress 
-      WHERE catalog_item_id = ? AND is_watched = 1
-    `).get(catalogItemId);
+      WHERE catalog_item_id = ? AND (user_id = ? OR user_id IS NULL) AND is_watched = 1
+    `).get(catalogItemId, targetUserId);
 
     const remainingEp = maxProg?.max_ep || 0;
     const remainingSeason = maxProg?.max_season || 1;
@@ -1333,40 +1391,41 @@ export function toggleEpisodeProgress(catalogItemId, seasonNumber, episodeNumber
       SET current_season = ?,
           current_episode = ?,
           updated_at = ?
-      WHERE id = ?
-    `).run(remainingSeason, remainingEp, now, catalogItemId);
+      WHERE id = ? AND (user_id = ? OR user_id IS NULL)
+    `).run(remainingSeason, remainingEp, now, catalogItemId, targetUserId);
   }
 
-  return getCatalogItem(catalogItemId);
+  return getCatalogItem(catalogItemId, targetUserId);
 }
 
-export function batchSetSeasonProgress(catalogItemId, seasonNumber, episodeCount, isWatched = true) {
-  if (isNeon()) return neonDB.batchSetSeasonProgress(catalogItemId, seasonNumber, Array.from({ length: episodeCount }, (_, i) => i + 1), isWatched);
+export function batchSetSeasonProgress(catalogItemId, seasonNumber, episodeCount, isWatched = true, userId) {
+  if (isNeon()) return neonDB.batchSetSeasonProgress(catalogItemId, seasonNumber, Array.from({ length: episodeCount }, (_, i) => i + 1), isWatched, userId);
 
   const db = getDB();
   const now = new Date().toISOString();
+  const targetUserId = userId || DEFAULT_USER_ID;
 
   const insertStmt = db.prepare(`
     INSERT OR REPLACE INTO catalog_episode_progress (
-      catalog_item_id, season_number, episode_number, is_watched, watched_at
-    ) VALUES (?, ?, ?, 1, ?)
+      user_id, catalog_item_id, season_number, episode_number, is_watched, watched_at
+    ) VALUES (?, ?, ?, ?, 1, ?)
   `);
 
   const deleteStmt = db.prepare(`
     DELETE FROM catalog_episode_progress 
-    WHERE catalog_item_id = ? AND season_number = ?
+    WHERE catalog_item_id = ? AND season_number = ? AND (user_id = ? OR user_id IS NULL)
   `);
 
-  const existing = db.prepare('SELECT seasons_completed FROM catalog_items WHERE id = ?').get(catalogItemId);
+  const existing = db.prepare('SELECT seasons_completed FROM catalog_items WHERE id = ? AND (user_id = ? OR user_id IS NULL)').get(catalogItemId, targetUserId);
 
   if (isWatched) {
     for (let ep = 1; ep <= episodeCount; ep++) {
-      insertStmt.run(catalogItemId, seasonNumber, ep, now);
+      insertStmt.run(targetUserId, catalogItemId, seasonNumber, ep, now);
     }
     db.prepare(`
       DELETE FROM catalog_episode_progress 
-      WHERE catalog_item_id = ? AND season_number = ? AND episode_number > ?
-    `).run(catalogItemId, seasonNumber, episodeCount);
+      WHERE catalog_item_id = ? AND season_number = ? AND episode_number > ? AND (user_id = ? OR user_id IS NULL)
+    `).run(catalogItemId, seasonNumber, episodeCount, targetUserId);
 
     const newSeasonsCompleted = Math.max(existing?.seasons_completed || 0, seasonNumber);
 
@@ -1411,7 +1470,8 @@ export function setSeasonsCompleted(catalogItemId, seasonsCompleted, opts = {}) 
 
   const db = getDB();
   const now = new Date().toISOString();
-  const existing = db.prepare('SELECT * FROM catalog_items WHERE id = ?').get(catalogItemId);
+  const targetUserId = opts.userId || DEFAULT_USER_ID;
+  const existing = db.prepare('SELECT * FROM catalog_items WHERE id = ? AND (user_id = ? OR user_id IS NULL)').get(catalogItemId, targetUserId);
   if (!existing) return null;
 
   const count = Math.max(0, parseInt(seasonsCompleted, 10) || 0);
@@ -1428,8 +1488,8 @@ export function setSeasonsCompleted(catalogItemId, seasonsCompleted, opts = {}) 
 
     const insertProg = db.prepare(`
       INSERT OR REPLACE INTO catalog_episode_progress (
-        catalog_item_id, season_number, episode_number, is_watched, watched_at
-      ) VALUES (?, ?, ?, 1, ?)
+        user_id, catalog_item_id, season_number, episode_number, is_watched, watched_at
+      ) VALUES (?, ?, ?, ?, 1, ?)
     `);
 
     if (mediaSeasons && mediaSeasons.length > 0) {
@@ -1437,17 +1497,17 @@ export function setSeasonsCompleted(catalogItemId, seasonsCompleted, opts = {}) 
         if (s.season_number <= count) {
           const epCount = s.episode_count || 1;
           for (let ep = 1; ep <= epCount; ep++) {
-            insertProg.run(catalogItemId, s.season_number, ep, now);
+            insertProg.run(targetUserId, catalogItemId, s.season_number, ep, now);
           }
         } else {
-          db.prepare('DELETE FROM catalog_episode_progress WHERE catalog_item_id = ? AND season_number = ?').run(catalogItemId, s.season_number);
+          db.prepare('DELETE FROM catalog_episode_progress WHERE catalog_item_id = ? AND season_number = ? AND (user_id = ? OR user_id IS NULL)').run(catalogItemId, s.season_number, targetUserId);
         }
       }
     } else {
       for (let s = 1; s <= count; s++) {
-        insertProg.run(catalogItemId, s, 1, now);
+        insertProg.run(targetUserId, catalogItemId, s, 1, now);
       }
-      db.prepare('DELETE FROM catalog_episode_progress WHERE catalog_item_id = ? AND season_number > ?').run(catalogItemId, count);
+      db.prepare('DELETE FROM catalog_episode_progress WHERE catalog_item_id = ? AND season_number > ? AND (user_id = ? OR user_id IS NULL)').run(catalogItemId, count, targetUserId);
     }
   }
 
@@ -1462,23 +1522,24 @@ export function setSeasonsCompleted(catalogItemId, seasonsCompleted, opts = {}) 
         completed_at = ?,
         last_watched_at = ?,
         updated_at = ?
-    WHERE id = ?
-  `).run(count, currentSeason, totalSeasons, userStatus, completedAt, now, now, catalogItemId);
+    WHERE id = ? AND (user_id = ? OR user_id IS NULL)
+  `).run(count, currentSeason, totalSeasons, userStatus, completedAt, now, now, catalogItemId, targetUserId);
 
-  return getCatalogItem(catalogItemId);
+  return getCatalogItem(catalogItemId, targetUserId);
 }
 
-export function getCatalogStats() {
-  if (isNeon()) return neonDB.getCatalogStats();
+export function getCatalogStats(userId) {
+  if (isNeon()) return neonDB.getCatalogStats(userId);
   const db = getDB();
+  const targetUserId = userId || DEFAULT_USER_ID;
 
-  const totalTitles = db.prepare('SELECT COUNT(*) as count FROM catalog_items').get().count;
-  const statusCounts = db.prepare('SELECT user_status, COUNT(*) as count FROM catalog_items GROUP BY user_status').all();
-  const typeCounts = db.prepare('SELECT media_type, COUNT(*) as count FROM catalog_items GROUP BY media_type').all();
-  const favoriteCount = db.prepare('SELECT COUNT(*) as count FROM catalog_items WHERE is_favorite = 1').get().count;
-  const watchedEpsCount = db.prepare('SELECT COUNT(*) as count FROM catalog_episode_progress WHERE is_watched = 1').get().count;
+  const totalTitles = db.prepare('SELECT COUNT(*) as count FROM catalog_items WHERE (user_id = ? OR user_id IS NULL)').get(targetUserId).count;
+  const statusCounts = db.prepare('SELECT user_status, COUNT(*) as count FROM catalog_items WHERE (user_id = ? OR user_id IS NULL) GROUP BY user_status').all(targetUserId);
+  const typeCounts = db.prepare('SELECT media_type, COUNT(*) as count FROM catalog_items WHERE (user_id = ? OR user_id IS NULL) GROUP BY media_type').all(targetUserId);
+  const favoriteCount = db.prepare('SELECT COUNT(*) as count FROM catalog_items WHERE is_favorite = 1 AND (user_id = ? OR user_id IS NULL)').get(targetUserId).count;
+  const watchedEpsCount = db.prepare('SELECT COUNT(*) as count FROM catalog_episode_progress WHERE is_watched = 1 AND (user_id = ? OR user_id IS NULL)').get(targetUserId).count;
 
-  const completedMoviesCount = db.prepare("SELECT COUNT(*) as count FROM catalog_items WHERE media_type = 'Movie' AND user_status = 'Completed'").get().count;
+  const completedMoviesCount = db.prepare("SELECT COUNT(*) as count FROM catalog_items WHERE media_type = 'Movie' AND user_status = 'Completed' AND (user_id = ? OR user_id IS NULL)").get(targetUserId).count;
   const estimatedHours = Math.round((watchedEpsCount * 30 + completedMoviesCount * 110) / 60);
 
   const statusMap = {};
@@ -1777,3 +1838,29 @@ export function getCatalogCharacters(options = {}) {
     .sort((a, b) => b.count - a.count)
     .slice(0, limit);
 }
+
+export function createUser({ id, email, password, displayName }) {
+  if (isNeon()) return neonDB.createUser({ id, email, password, displayName });
+  const db = getDB();
+  const userId = id || `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const hash = hashPassword(password);
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO users (id, email, password_hash, display_name, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(userId, email.toLowerCase().trim(), hash, displayName || null, now, now);
+  return { id: userId, email: email.toLowerCase().trim(), displayName: displayName || null };
+}
+
+export function findUserByEmail(email) {
+  if (isNeon()) return neonDB.findUserByEmail(email);
+  const db = getDB();
+  return db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(email.toLowerCase().trim()) || null;
+}
+
+export function findUserById(id) {
+  if (isNeon()) return neonDB.findUserById(id);
+  const db = getDB();
+  return db.prepare('SELECT id, email, display_name, created_at FROM users WHERE id = ?').get(id) || null;
+}
+

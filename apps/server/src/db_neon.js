@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { generateDefaultMirrors, DEFAULT_MIRROR_REGISTRY, normalizeTitle } from '@omniwatch/shared';
+import { hashPassword, DEFAULT_USER_ID, DEFAULT_USER_EMAIL } from './auth.js';
 
 let sqlClient = null;
 
@@ -18,6 +19,18 @@ export async function initDB() {
   const sql = getSql();
 
   // Create tables in PostgreSQL
+  await sql`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      display_name TEXT,
+      created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP::text),
+      updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP::text)
+    );
+  `;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);`;
+
   await sql`
     CREATE TABLE IF NOT EXISTS cached_media (
       id TEXT PRIMARY KEY,
@@ -168,8 +181,28 @@ export async function initDB() {
     await sql`ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS seasons_completed INTEGER DEFAULT 0;`;
     await sql`ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS total_seasons INTEGER DEFAULT 1;`;
     await sql`ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS is_rewatching INTEGER DEFAULT 0;`;
+    await sql`ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS user_id TEXT DEFAULT ${DEFAULT_USER_ID};`;
+    await sql`ALTER TABLE catalog_episode_progress ADD COLUMN IF NOT EXISTS user_id TEXT DEFAULT ${DEFAULT_USER_ID};`;
+
+    // Seed default user if not exists
+    const existingUser = await sql`SELECT id FROM users WHERE email = ${DEFAULT_USER_EMAIL} LIMIT 1`;
+    if (!existingUser || existingUser.length === 0) {
+      const seedHash = hashPassword('OutCast106');
+      await sql`
+        INSERT INTO users (id, email, password_hash, display_name)
+        VALUES (${DEFAULT_USER_ID}, ${DEFAULT_USER_EMAIL}, ${seedHash}, 'Maki Sanis')
+        ON CONFLICT (id) DO NOTHING;
+      `;
+    }
+
+    // Migrate any unassigned legacy catalog records
+    await sql`UPDATE catalog_items SET user_id = ${DEFAULT_USER_ID} WHERE user_id IS NULL OR user_id = '';`;
+    await sql`UPDATE catalog_episode_progress SET user_id = ${DEFAULT_USER_ID} WHERE user_id IS NULL OR user_id = '';`;
+
+    await sql`CREATE INDEX IF NOT EXISTS idx_catalog_user ON catalog_items(user_id);`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_progress_user ON catalog_episode_progress(user_id);`;
   } catch (err) {
-    // Columns might already exist
+    // Columns or indexes might already exist
   }
 
   await sql`
@@ -1200,3 +1233,32 @@ export async function getCatalogCharacters({ limit = 25 } = {}) {
     .sort((a, b) => b.appearances - a.appearances)
     .slice(0, limit);
 }
+
+export async function createUser({ id, email, password, displayName }) {
+  const sql = getSql();
+  const userId = id || `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const hash = hashPassword(password);
+  const now = new Date().toISOString();
+  await sql`
+    INSERT INTO users (id, email, password_hash, display_name, created_at, updated_at)
+    VALUES (${userId}, ${email.toLowerCase().trim()}, ${hash}, ${displayName || null}, ${now}, ${now})
+  `;
+  return { id: userId, email: email.toLowerCase().trim(), displayName: displayName || null };
+}
+
+export async function findUserByEmail(email) {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT * FROM users WHERE LOWER(email) = ${email.toLowerCase().trim()} LIMIT 1
+  `;
+  return rows[0] || null;
+}
+
+export async function findUserById(id) {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT id, email, display_name, created_at FROM users WHERE id = ${id} LIMIT 1
+  `;
+  return rows[0] || null;
+}
+
