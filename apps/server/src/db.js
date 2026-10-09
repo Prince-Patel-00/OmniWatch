@@ -1,10 +1,12 @@
-import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { generateDefaultMirrors, DEFAULT_MIRROR_REGISTRY } from '@omniwatch/shared';
 import * as neonDB from './db_neon.js';
 import { hashPassword, DEFAULT_USER_ID, DEFAULT_USER_EMAIL } from './auth.js';
+
+const require = createRequire(import.meta.url);
 
 export function isNeon() {
   if (process.env.USE_SQLITE === '1' || process.env.USE_SQLITE === 'true') {
@@ -13,21 +15,41 @@ export function isNeon() {
   return Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL);
 }
 
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DATA_DIR = path.resolve(__dirname, '../data');
 const DB_PATH = process.env.OMNIWATCH_DB_PATH || path.join(DATA_DIR, 'omniwatch.db');
 
 let dbInstance = null;
+let DatabaseSyncClass = null;
+
+function getDatabaseSync() {
+  if (!DatabaseSyncClass) {
+    try {
+      const sqliteModule = require('node:sqlite');
+      DatabaseSyncClass = sqliteModule.DatabaseSync;
+    } catch (err) {
+      throw new Error(
+        'node:sqlite is not available in this runtime environment. In cloud/serverless deployments (e.g. Vercel), configure DATABASE_URL for Neon PostgreSQL. Underlying error: ' +
+          err.message
+      );
+    }
+  }
+  return DatabaseSyncClass;
+}
 
 export function getDB() {
+  if (isNeon()) {
+    throw new Error('getDB() called while running in Neon PostgreSQL mode. Use neonDB methods instead.');
+  }
+
   if (!dbInstance) {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
 
-    dbInstance = new DatabaseSync(DB_PATH);
+    const DBClass = getDatabaseSync();
+    dbInstance = new DBClass(DB_PATH);
     dbInstance.exec('PRAGMA journal_mode = WAL;');
     dbInstance.exec('PRAGMA foreign_keys = ON;');
     dbInstance.exec('PRAGMA synchronous = NORMAL;');

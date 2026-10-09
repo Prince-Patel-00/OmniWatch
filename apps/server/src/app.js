@@ -32,7 +32,11 @@ const app = express();
 let dbInitPromise = null;
 export async function ensureDB() {
   if (!dbInitPromise) {
-    dbInitPromise = Promise.resolve(initDB());
+    dbInitPromise = (async () => {
+      const dbType = isNeon() ? 'Neon PostgreSQL (Serverless)' : 'Local SQLite';
+      console.log(`[DB] Initializing database engine: ${dbType}`);
+      return initDB();
+    })();
   }
   return dbInitPromise;
 }
