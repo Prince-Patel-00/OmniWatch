@@ -25,8 +25,8 @@ Deliver a zero-friction, production-ready Vercel deployment for OmniWatch using:
   - Running server with `DATABASE_URL` set works seamlessly without attempting to create local SQLite databases or importing incompatible native modules.
   - Cold starts on Vercel initialize `neonDB` correctly within 500ms.
 
-### REQ-VERCEL-02: Deterministic Monorepo Rewrites & Static Routing
-- **Description:** Configure `vercel.json` to route all `/api/(.*)` requests directly to the serverless function handler in `api/index.js`, preserve URL paths and queries, and route all frontend routes to `apps/client/dist/index.html`.
+### REQ-VERCEL-02: Deterministic Monorepo Rewrites & Static Routing [COMPLETE]
+- **Status:** ✅ VERIFIED (Plan 2.1)
 - **Acceptance Criteria:**
   - Requests to `/api/catalog`, `/api/global/trending`, `/api/auth/me`, etc., hit the Express serverless function with correct route matching.
   - Non-API routes (e.g. `/`, `/watchlist`, `/settings`) serve the client SPA bundle without 404 errors.
