@@ -25,7 +25,7 @@ describe('Vercel Monorepo Rewrites & Serverless Handler Suite', () => {
     // Cron check
     assert.ok(Array.isArray(config.crons));
     assert.equal(config.crons[0].path, '/api/mirrors/check');
-    assert.equal(config.crons[0].schedule, '0 */6 * * *');
+    assert.equal(config.crons[0].schedule, '0 4 * * *');
   });
 
   it('api/index.js handler normalizes URLs and serves API routes', async () => {

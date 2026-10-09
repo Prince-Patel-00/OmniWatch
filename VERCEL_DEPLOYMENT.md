@@ -101,7 +101,7 @@ https://<your-project>.vercel.app/api/health
 1. In your Vercel Dashboard, go to your project → **Settings** → **Cron Jobs**.
 2. Confirm the scheduled job is active:
    - **Path:** `/api/mirrors/check`
-   - **Schedule:** `0 */6 * * *` (Every 6 hours)
+   - **Schedule:** `0 4 * * *` (Daily at 04:00 UTC)
 
 ---
 
