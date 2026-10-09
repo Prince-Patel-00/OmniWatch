@@ -147,6 +147,27 @@ describe('OmniWatch User Auth & Catalog Isolation Suite', () => {
     assert.equal(json.data.length, 0, 'Primary user must not see other tenants items');
   });
 
+  it('GET /api/catalog without auth token (logged out) must return empty catalog', async () => {
+    const res = await fetch(`${SERVER_BASE}/catalog`);
+    assert.equal(res.status, 200);
+    const json = await res.json();
+    assert.equal(json.success, true);
+    assert.equal(json.data.length, 0, 'Unauthenticated catalog request must be empty');
+    assert.equal(json.count, 0);
+  });
+
+  it('POST /api/catalog without auth token must be rejected with 401', async () => {
+    const res = await fetch(`${SERVER_BASE}/catalog`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        canonicalId: 'omni_unauth_test',
+        title: 'Unauthenticated Test'
+      })
+    });
+    assert.equal(res.status, 401);
+  });
+
   after(async () => {
     // Cleanup created catalog item
     if (createdCatalogItemId && testUserToken) {

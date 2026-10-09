@@ -1,9 +1,25 @@
-import { describe, it } from 'node:test';
+import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 
 const SERVER_BASE = 'http://localhost:5000/api';
 
 describe('OmniWatch REST API Live Endpoints', () => {
+  let authToken = null;
+
+  before(async () => {
+    const res = await fetch(`${SERVER_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'makisanis106@gmail.com',
+        password: 'OutCast106'
+      })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      authToken = data.token;
+    }
+  });
   it('GET /api/system/status should return health and provider status', async () => {
     const res = await fetch(`${SERVER_BASE}/system/status`);
     assert.equal(res.status, 200);
@@ -53,7 +69,10 @@ describe('OmniWatch REST API Live Endpoints', () => {
     // 1. Add title
     const addRes = await fetch(`${SERVER_BASE}/catalog`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+      },
       body: JSON.stringify({
         canonicalId: 'omni_api_test_cyberpunk',
         title: 'Cyberpunk: Edgerunners',
@@ -72,7 +91,10 @@ describe('OmniWatch REST API Live Endpoints', () => {
       // 2. Update status to Watching
       const patchRes = await fetch(`${SERVER_BASE}/catalog/${itemId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+        },
         body: JSON.stringify({ userStatus: 'Watching', currentEpisode: 2 })
       });
       assert.equal(patchRes.status, 200);
@@ -83,7 +105,10 @@ describe('OmniWatch REST API Live Endpoints', () => {
       // 3. Increment episode progress
       const progRes = await fetch(`${SERVER_BASE}/catalog/${itemId}/progress`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+        },
         body: JSON.stringify({ seasonNumber: 1, episodeNumber: 3, isWatched: true })
       });
       assert.equal(progRes.status, 200);
@@ -92,7 +117,8 @@ describe('OmniWatch REST API Live Endpoints', () => {
     } finally {
       // 4. Delete item
       await fetch(`${SERVER_BASE}/catalog/${itemId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
       }).catch(() => {});
     }
   });

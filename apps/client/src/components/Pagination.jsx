@@ -8,7 +8,7 @@ import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-r
 export default function Pagination({
   currentPage = 1,
   hasMore = false,
-  pageSize = 24,
+  pageSize = 25,
   onPageChange,
   onPageSizeChange,
   totalCount = null,
@@ -52,11 +52,11 @@ export default function Pagination({
   };
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-6 px-4 sm:px-6 my-6 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md shadow-xl">
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-5 px-3 sm:px-6 my-6 rounded-2xl bg-zinc-900/70 border border-zinc-800/80 backdrop-blur-md shadow-xl w-full">
       
       {/* Left: Page & Total Items Info */}
-      <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm text-zinc-400 order-2 sm:order-1">
-        <span className="flex items-center gap-2 font-medium">
+      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5 sm:gap-3 text-xs sm:text-sm text-zinc-400 order-2 sm:order-1 w-full sm:w-auto">
+        <span className="flex items-center gap-1.5 sm:gap-2 font-medium">
           <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-sm shadow-red-500/50" />
           <span>Page</span>
           <strong className="text-white font-black px-2 py-0.5 rounded-lg bg-zinc-800 border border-zinc-700/80 shadow-inner">
@@ -76,14 +76,14 @@ export default function Pagination({
         )}
 
         {onPageSizeChange && (
-          <div className="flex items-center gap-1.5 pl-3 border-l border-zinc-800 text-xs text-zinc-400">
-            <span>Per page:</span>
-            {[24, 48].map((size) => (
+          <div className="flex items-center gap-1.5 pl-2 sm:pl-3 border-l border-zinc-800 text-xs text-zinc-400">
+            <span className="hidden sm:inline">Per page:</span>
+            {[25, 50, 100].map((size) => (
               <button
                 key={size}
                 type="button"
                 onClick={() => onPageSizeChange(size)}
-                className={`px-2 py-0.5 rounded-lg text-xs font-bold transition-all ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                   pageSize === size
                     ? 'bg-red-600 text-white shadow-sm'
                     : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white'

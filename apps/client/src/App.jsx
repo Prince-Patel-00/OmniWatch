@@ -10,6 +10,7 @@ import BackupModal from './components/BackupModal.jsx';
 import AuthModal from './components/AuthModal.jsx';
 import Toast from './components/Toast.jsx';
 import Pagination from './components/Pagination.jsx';
+import { Compass, Bookmark, BookmarkCheck, BarChart3, LogIn } from 'lucide-react';
 
 import {
   getTrendingMedia,
@@ -29,7 +30,8 @@ import {
   getSystemStatus,
   getMe,
   logout,
-  getStoredUser
+  getStoredUser,
+  getStoredToken
 } from './services/api.js';
 import { normalizeTitle } from '@omniwatch/shared';
 
@@ -68,7 +70,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(24);
+  const [pageSize, setPageSize] = useState(25);
   const [hasMore, setHasMore] = useState(false);
 
   // Request counter to ensure stale async responses never overwrite active view
@@ -104,9 +106,12 @@ export default function App() {
   const handleLogout = async () => {
     await logout();
     setCurrentUser(null);
+    setCatalogItems([]);
+    setCatalogMediaList([]);
+    setStats(null);
+    seenPagesRef.current.clear();
+    setCurrentView('global');
     showToast('Signed out of personal catalog', 'info');
-    refreshCatalogVault();
-    loadContent();
   };
 
   // Debounce search input by 300ms
@@ -119,6 +124,11 @@ export default function App() {
 
   // Load Catalog items & stats for fast status lookup across the entire app
   const refreshCatalogVault = useCallback(async () => {
+    if (!getStoredToken()) {
+      setCatalogItems([]);
+      setStats(null);
+      return;
+    }
     try {
       const [catRes, statsRes, sysRes] = await Promise.all([
         getCatalog({}),
@@ -168,6 +178,16 @@ export default function App() {
         }
       }
       const excludeIdsParam = priorIds.length > 0 ? priorIds.join(',') : '';
+
+      if (requestedView === 'want_to_watch' || requestedView === 'catalog') {
+        if (!getStoredToken()) {
+          if (requestId !== activeRequestIdRef.current) return;
+          setCatalogMediaList([]);
+          setHasMore(false);
+          setLoading(false);
+          return;
+        }
+      }
 
       if (requestedView === 'want_to_watch') {
         const catalogSort = activeSort === 'popularity_desc'
@@ -783,7 +803,7 @@ export default function App() {
       />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 max-w-[1720px] w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-8">
 
         {/* VIEW 1: INSIGHTS & ANALYTICS */}
         {currentView === 'stats' ? (
@@ -1053,6 +1073,92 @@ export default function App() {
       {toast && (
         <Toast toast={toast} onClose={() => setToast(null)} />
       )}
+
+      {/* Mobile Bottom Navigation Bar (Phone-optimized floating thumb dock) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/95 border-t border-zinc-800/90 backdrop-blur-2xl px-2 py-1.5 flex items-center justify-around shadow-2xl">
+        <button
+          onClick={() => handleViewChange('global')}
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-xl transition-all ${
+            currentView === 'global'
+              ? 'text-red-500 font-bold scale-105'
+              : 'text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <Compass className="w-5 h-5" />
+          <span className="text-[10px] tracking-tight">Global</span>
+        </button>
+
+        <button
+          onClick={() => handleViewChange('want_to_watch')}
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-xl relative transition-all ${
+            currentView === 'want_to_watch'
+              ? 'text-amber-400 font-bold scale-105'
+              : 'text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <div className="relative">
+            <Bookmark className="w-5 h-5" />
+            {wantToWatchCount > 0 && (
+              <span className="absolute -top-1 -right-2 px-1 min-w-[14px] h-[14px] rounded-full text-[9px] font-black bg-amber-500 text-zinc-950 flex items-center justify-center">
+                {wantToWatchCount > 99 ? '99+' : wantToWatchCount}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] tracking-tight">Watchlist</span>
+        </button>
+
+        <button
+          onClick={() => handleViewChange('catalog')}
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-xl relative transition-all ${
+            currentView === 'catalog'
+              ? 'text-emerald-400 font-bold scale-105'
+              : 'text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <div className="relative">
+            <BookmarkCheck className="w-5 h-5" />
+            {catalogCount > 0 && (
+              <span className="absolute -top-1 -right-2 px-1 min-w-[14px] h-[14px] rounded-full text-[9px] font-black bg-emerald-500 text-zinc-950 flex items-center justify-center">
+                {catalogCount > 99 ? '99+' : catalogCount}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] tracking-tight">Catalog</span>
+        </button>
+
+        <button
+          onClick={() => handleViewChange('stats')}
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-xl transition-all ${
+            currentView === 'stats'
+              ? 'text-amber-400 font-bold scale-105'
+              : 'text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <BarChart3 className="w-5 h-5" />
+          <span className="text-[10px] tracking-tight">Insights</span>
+        </button>
+
+        {currentUser ? (
+          <button
+            onClick={() => handleLogout()}
+            title={`Signed in as ${currentUser.email}. Click to sign out.`}
+            className="flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-xl text-zinc-400 hover:text-red-400 transition-all"
+          >
+            <div className="w-5 h-5 rounded-md bg-gradient-to-tr from-red-600 to-rose-500 flex items-center justify-center text-[10px] font-black text-white">
+              {(currentUser.displayName || currentUser.email || 'U')[0].toUpperCase()}
+            </div>
+            <span className="text-[10px] tracking-tight">Sign Out</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => setAuthModalOpen(true)}
+            className="flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-xl text-red-400 font-semibold transition-all"
+          >
+            <LogIn className="w-5 h-5" />
+            <span className="text-[10px] tracking-tight">Sign In</span>
+          </button>
+        )}
+      </nav>
 
     </div>
   );

@@ -148,6 +148,7 @@ export async function initDB() {
     CREATE TABLE IF NOT EXISTS catalog_items (
       id TEXT PRIMARY KEY,
       canonical_id TEXT NOT NULL,
+      user_id TEXT DEFAULT 'user_makisanis106',
       media_type TEXT NOT NULL,
       format TEXT DEFAULT 'Series',
       title TEXT NOT NULL,
@@ -177,12 +178,30 @@ export async function initDB() {
   await sql`CREATE INDEX IF NOT EXISTS idx_catalog_type ON catalog_items(media_type);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_catalog_canonical ON catalog_items(canonical_id);`;
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS catalog_episode_progress (
+      catalog_item_id TEXT NOT NULL,
+      user_id TEXT DEFAULT 'user_makisanis106',
+      season_number INTEGER NOT NULL,
+      episode_number INTEGER NOT NULL,
+      is_watched INTEGER NOT NULL DEFAULT 1,
+      watched_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP::text),
+      PRIMARY KEY (catalog_item_id, season_number, episode_number),
+      FOREIGN KEY(catalog_item_id) REFERENCES catalog_items(id) ON DELETE CASCADE
+    );
+  `;
+
   try {
+    await sql`ALTER TABLE cached_media ADD COLUMN IF NOT EXISTS related_json TEXT;`;
+    await sql`ALTER TABLE cached_media ADD COLUMN IF NOT EXISTS sources_json TEXT;`;
+    await sql`ALTER TABLE cached_media ADD COLUMN IF NOT EXISTS format TEXT DEFAULT 'Series';`;
+
+    await sql`ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS format TEXT DEFAULT 'Series';`;
+    await sql`ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS is_rewatching INTEGER DEFAULT 0;`;
     await sql`ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS seasons_completed INTEGER DEFAULT 0;`;
     await sql`ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS total_seasons INTEGER DEFAULT 1;`;
-    await sql`ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS is_rewatching INTEGER DEFAULT 0;`;
-    await sql`ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS user_id TEXT DEFAULT ${DEFAULT_USER_ID};`;
-    await sql`ALTER TABLE catalog_episode_progress ADD COLUMN IF NOT EXISTS user_id TEXT DEFAULT ${DEFAULT_USER_ID};`;
+    await sql`ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS user_id TEXT DEFAULT 'user_makisanis106';`;
+    await sql`ALTER TABLE catalog_episode_progress ADD COLUMN IF NOT EXISTS user_id TEXT DEFAULT 'user_makisanis106';`;
 
     // Seed default user if not exists
     const existingUser = await sql`SELECT id FROM users WHERE email = ${DEFAULT_USER_EMAIL} LIMIT 1`;
@@ -191,31 +210,25 @@ export async function initDB() {
       await sql`
         INSERT INTO users (id, email, password_hash, display_name)
         VALUES (${DEFAULT_USER_ID}, ${DEFAULT_USER_EMAIL}, ${seedHash}, 'Maki Sanis')
-        ON CONFLICT (id) DO NOTHING;
+        ON CONFLICT (email) DO NOTHING;
       `;
     }
 
     // Migrate any unassigned legacy catalog records
-    await sql`UPDATE catalog_items SET user_id = ${DEFAULT_USER_ID} WHERE user_id IS NULL OR user_id = '';`;
-    await sql`UPDATE catalog_episode_progress SET user_id = ${DEFAULT_USER_ID} WHERE user_id IS NULL OR user_id = '';`;
+    await sql`UPDATE catalog_items SET user_id = 'user_makisanis106' WHERE user_id IS NULL OR user_id = '';`;
+    await sql`UPDATE catalog_episode_progress SET user_id = 'user_makisanis106' WHERE user_id IS NULL OR user_id = '';`;
+
+    // Clean up movie seasons so Movie records don't have total_seasons
+    await sql`UPDATE cached_media SET total_seasons = NULL WHERE media_type = 'Movie' OR format = 'Movie';`;
+    await sql`UPDATE catalog_items SET total_seasons = NULL, seasons_completed = 0 WHERE media_type = 'Movie';`;
 
     await sql`CREATE INDEX IF NOT EXISTS idx_catalog_user ON catalog_items(user_id);`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_catalog_user_status ON catalog_items(user_id, user_status);`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_catalog_user_canonical ON catalog_items(user_id, canonical_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_progress_user ON catalog_episode_progress(user_id);`;
   } catch (err) {
-    // Columns or indexes might already exist
+    console.error('Migration warning in Neon:', err.message);
   }
-
-  await sql`
-    CREATE TABLE IF NOT EXISTS catalog_episode_progress (
-      catalog_item_id TEXT NOT NULL,
-      season_number INTEGER NOT NULL,
-      episode_number INTEGER NOT NULL,
-      is_watched INTEGER NOT NULL DEFAULT 1,
-      watched_at TEXT NOT NULL,
-      PRIMARY KEY (catalog_item_id, season_number, episode_number),
-      FOREIGN KEY(catalog_item_id) REFERENCES catalog_items(id) ON DELETE CASCADE
-    );
-  `;
 
   await sql`
     CREATE TABLE IF NOT EXISTS mirror_sources (
@@ -253,21 +266,18 @@ export async function initDB() {
     );
   `;
 
-  // Seed default mirror sources if empty
-  const countRes = await sql`SELECT COUNT(*)::int as cnt FROM mirror_sources;`;
-  if (countRes[0]?.cnt === 0) {
-    for (const m of DEFAULT_MIRROR_REGISTRY) {
-      await sql`
-        INSERT INTO mirror_sources (
-          id, name, category, type, quality, audio, current_domain, candidate_domains,
-          search_template, direct_url_template, status_note, sort_order
-        ) VALUES (
-          ${m.id}, ${m.name}, ${m.category}, ${m.type}, ${m.quality || '1080p HD'},
-          ${m.audio || 'Multi-Audio'}, ${m.currentDomain}, ${JSON.stringify(m.candidateDomains || [m.currentDomain])},
-          ${m.searchTemplate}, ${m.directUrlTemplate || null}, ${m.statusNote || null}, ${m.sortOrder || 0}
-        ) ON CONFLICT (id) DO NOTHING;
-      `;
-    }
+  // Seed default mirror sources
+  for (const m of DEFAULT_MIRROR_REGISTRY) {
+    await sql`
+      INSERT INTO mirror_sources (
+        id, name, category, type, quality, audio, current_domain, candidate_domains,
+        search_template, direct_url_template, status_note, sort_order
+      ) VALUES (
+        ${m.id}, ${m.name}, ${m.category}, ${m.type}, ${m.quality || '1080p HD'},
+        ${m.audio || 'Multi-Audio'}, ${m.currentDomain}, ${JSON.stringify(m.candidateDomains || [m.currentDomain])},
+        ${m.searchTemplate}, ${m.directUrlTemplate || null}, ${m.statusNote || null}, ${m.sortOrder || 0}
+      ) ON CONFLICT (id) DO NOTHING;
+    `;
   }
 
   console.log('✅ [Neon PostgreSQL] Database schema initialized successfully');
@@ -436,7 +446,7 @@ export async function saveCanonicalMedia(media) {
     }
   }
 
-  return media;
+  return getCanonicalMedia(media.id);
 }
 
 export async function getCanonicalMedia(id) {
@@ -509,6 +519,7 @@ export async function getCanonicalMedia(id) {
     totalEpisodes: Math.max(item.total_episodes || 0, episodes.length) || null,
     nextAiringEpisode: item.next_airing_episode,
     nextAiringAt: item.next_airing_at,
+    lastSyncedAt: item.last_synced_at,
     providerMappings,
     seasons: seasons.map(s => ({
       seasonNumber: s.season_number,
@@ -739,8 +750,11 @@ export async function getCatalogItems(filters = {}) {
   if (genre !== 'All') {
     filtered = filtered.filter(i => {
       try {
-        const g = JSON.parse(i.genres_json || '[]');
-        return g.includes(genre);
+        let g = JSON.parse(i.genres_json || '[]');
+        if (!Array.isArray(g) || g.length === 0) {
+          g = JSON.parse(i.tags_json || '[]');
+        }
+        return Array.isArray(g) && g.some(itemG => itemG && itemG.toLowerCase() === genre.toLowerCase());
       } catch (e) {
         return false;
       }
@@ -857,9 +871,34 @@ export async function upsertCatalogItem(item, userId) {
   const id = item.id || `cat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const now = new Date().toISOString();
 
-  const totalSeasonsVal = item.totalSeasons !== undefined ? item.totalSeasons : 1;
-  const seasonsCompletedVal = item.seasonsCompleted !== undefined ? item.seasonsCompleted : 0;
-  const currentSeasonVal = item.currentSeason || (seasonsCompletedVal > 0 ? seasonsCompletedVal + 1 : 1);
+  const isMovie = item.mediaType === 'Movie' || item.format === 'Movie' || item.isMovie;
+  const isStandaloneSeason = !isMovie && Boolean(
+    item.isSeparateSeason ||
+    /(?:\bSeason\s*[2-9]|\bSeason\s*\d{2,}|\b[2-9]\d*(?:st|nd|rd|th)\s*Season|\bFinal\s*Season|\bSeason\s*Final|\bPart\s*[2-9]|\bCour\s*[2-9]|\bS[2-9]\b|\b(?:II|III|IV|V|VI)\b)/i.test(item.title || '')
+  );
+
+  const totalSeasonsVal = isMovie || isStandaloneSeason ? null : (item.totalSeasons !== undefined ? item.totalSeasons : 1);
+  const seasonsCompletedVal = isMovie || isStandaloneSeason ? 0 : (item.seasonsCompleted !== undefined ? item.seasonsCompleted : 0);
+  const currentSeasonVal = isMovie ? null : (item.currentSeason || (seasonsCompletedVal > 0 ? seasonsCompletedVal + 1 : 1));
+
+  let itemTags = [];
+  if (Array.isArray(item.tags)) itemTags.push(...item.tags);
+  if (Array.isArray(item.genres)) {
+    for (const g of item.genres) {
+      if (!itemTags.includes(g)) itemTags.push(g);
+    }
+  }
+
+  if (item.canonicalId && Array.isArray(item.genres) && item.genres.length > 0) {
+    try {
+      await sql`
+        INSERT INTO cached_media (id, media_type, format, title, genres_json, poster_url, backdrop_url, release_year, status, last_synced_at)
+        VALUES (${item.canonicalId}, ${item.mediaType || 'Series'}, ${item.format || 'Series'}, ${item.title}, ${JSON.stringify(item.genres)}, ${item.posterUrl || null}, ${item.backdropUrl || null}, ${item.releaseYear || null}, 'Ended', ${now})
+        ON CONFLICT (id) DO UPDATE SET
+          genres_json = COALESCE(EXCLUDED.genres_json, cached_media.genres_json);
+      `;
+    } catch (e) {}
+  }
 
   await sql`
     INSERT INTO catalog_items (
@@ -873,7 +912,7 @@ export async function upsertCatalogItem(item, userId) {
       ${item.releaseYear || null}, ${item.userStatus || 'Want to Watch'},
       ${item.isFavorite ? 1 : 0}, ${item.isRewatching ? 1 : 0}, ${item.userRating || null},
       ${currentSeasonVal}, ${seasonsCompletedVal}, ${totalSeasonsVal}, ${item.currentEpisode || 0}, ${item.totalEpisodes || null},
-      ${item.notes || null}, ${JSON.stringify(item.tags || [])},
+      ${item.notes || null}, ${JSON.stringify(itemTags)},
       ${item.startedAt || null}, ${item.completedAt || null}, ${item.lastWatchedAt || null},
       ${now}
     )
@@ -964,9 +1003,21 @@ export async function toggleEpisodeProgress(catalogItemId, seasonNumber, episode
         AND (user_id = ${targetUserId} OR user_id IS NULL);
     `;
 
+    const maxProg = await sql`
+      SELECT MAX(episode_number)::int as max_ep, MAX(season_number)::int as max_season
+      FROM catalog_episode_progress
+      WHERE catalog_item_id = ${catalogItemId} AND (user_id = ${targetUserId} OR user_id IS NULL) AND is_watched = 1;
+    `;
+
+    const remainingEp = maxProg[0]?.max_ep || 0;
+    const remainingSeason = maxProg[0]?.max_season || 1;
+
     await sql`
       UPDATE catalog_items
-      SET last_watched_at = ${now}, updated_at = ${now}
+      SET current_season = ${remainingSeason},
+          current_episode = ${remainingEp},
+          last_watched_at = ${now},
+          updated_at = ${now}
       WHERE id = ${catalogItemId} AND (user_id = ${targetUserId} OR user_id IS NULL);
     `;
   }
@@ -1159,7 +1210,7 @@ export async function getCatalogRecommendations(userId) {
                cm.genres_json, cm.related_json as related_media_json, cm.rating as global_rating
         FROM catalog_items ci
         LEFT JOIN cached_media cm ON ci.canonical_id = cm.id OR ci.id = cm.id
-        WHERE (ci.user_id = ${userId} OR ci.user_id IS NULL) AND (ci.user_rating >= 9 OR ci.is_favorite = true)
+        WHERE (ci.user_id = ${userId} OR ci.user_id IS NULL) AND (ci.user_rating >= 9 OR ci.is_favorite = 1)
         ORDER BY ci.user_rating DESC, ci.updated_at DESC
         LIMIT 10;
       `
@@ -1168,7 +1219,7 @@ export async function getCatalogRecommendations(userId) {
                cm.genres_json, cm.related_json as related_media_json, cm.rating as global_rating
         FROM catalog_items ci
         LEFT JOIN cached_media cm ON ci.canonical_id = cm.id OR ci.id = cm.id
-        WHERE ci.user_rating >= 9 OR ci.is_favorite = true
+        WHERE ci.user_rating >= 9 OR ci.is_favorite = 1
         ORDER BY ci.user_rating DESC, ci.updated_at DESC
         LIMIT 10;
       `;

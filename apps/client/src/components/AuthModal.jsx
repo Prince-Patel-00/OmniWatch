@@ -40,11 +40,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, onShowToast 
     }
   };
 
-  const handleFillDemo = () => {
-    setEmail('makisanis106@gmail.com');
-    setPassword('OutCast106');
-    setError('');
-  };
+
 
   return (
     <div
@@ -187,19 +183,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, onShowToast 
           </button>
         </form>
 
-        {/* Demo Account Quick-Fill */}
-        {mode === 'login' && (
-          <div className="pt-2 border-t border-zinc-900 flex items-center justify-between">
-            <span className="text-[11px] text-zinc-500">Default Catalog Owner:</span>
-            <button
-              type="button"
-              onClick={handleFillDemo}
-              className="text-[11px] font-semibold text-red-400 hover:text-red-300 transition-colors"
-            >
-              Fill Demo Credentials
-            </button>
-          </div>
-        )}
+
       </div>
     </div>
   );

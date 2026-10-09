@@ -13,7 +13,7 @@ import {
   User,
   Sparkles
 } from 'lucide-react';
-import { formatTimeUntil } from '@omniwatch/shared';
+import { formatTimeUntil, shouldDisplaySeasonCount, isStandaloneSeasonRecord } from '@omniwatch/shared';
 
 export default function MediaCard({
   media,
@@ -36,6 +36,9 @@ export default function MediaCard({
   const totalEp = catalogEntry?.totalEpisodes || media.totalEpisodes;
   const seasonsCompleted = catalogEntry?.seasonsCompleted ?? 0;
   const totalSeasons = catalogEntry?.totalSeasons || media.totalSeasons;
+
+  // Use shared helper: strictly false for movies, standalone seasons (AOT S2, etc.), or 1-season shows
+  const shouldShowSeasonBadges = shouldDisplaySeasonCount(media);
 
   return (
     <div
@@ -116,7 +119,7 @@ export default function MediaCard({
               </div>
               {isEpisodic && (
                 <span className="text-[10px] text-zinc-300 font-semibold shrink-0">
-                  {seasonsCompleted > 0 && totalSeasons ? (
+                  {shouldShowSeasonBadges && seasonsCompleted > 0 ? (
                     `${seasonsCompleted}/${totalSeasons} Sns`
                   ) : totalEp ? (
                     `${currentEp}/${totalEp}`
@@ -157,11 +160,11 @@ export default function MediaCard({
             <span>{media.releaseYear || 'TBA'}</span>
             <span className="text-zinc-500">•</span>
             <span className="truncate">{media.studios?.[0] || media.networks?.[0] || media.status}</span>
-            {isEpisodic && (totalSeasons || seasonsCompleted > 0) && (
+            {shouldShowSeasonBadges && (
               <>
                 <span className="text-zinc-500">•</span>
                 <span className="text-zinc-300 font-semibold shrink-0">
-                  {seasonsCompleted > 0 ? `${seasonsCompleted}/${totalSeasons || '?'} Sns Done` : `${totalSeasons} Sns`}
+                  {seasonsCompleted > 0 ? `${seasonsCompleted}/${totalSeasons} Sns Done` : `${totalSeasons} Sns`}
                 </span>
               </>
             )}

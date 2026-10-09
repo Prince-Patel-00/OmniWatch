@@ -292,31 +292,28 @@ function initSchema(db) {
       );
     `);
 
-    // Initialize default registry if table is empty
-    const mCount = db.prepare('SELECT COUNT(*) as cnt FROM mirror_sources').get();
-    if (!mCount || mCount.cnt === 0) {
-      const insStmt = db.prepare(`
-        INSERT INTO mirror_sources (
-          id, name, category, type, quality, audio, current_domain, candidate_domains,
-          search_template, direct_url_template, status_note, sort_order
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-      for (const m of DEFAULT_MIRROR_REGISTRY) {
-        insStmt.run(
-          m.id,
-          m.name,
-          m.category,
-          m.type,
-          m.quality || '1080p HD',
-          m.audio || 'Multi-Audio',
-          m.currentDomain,
-          JSON.stringify(m.candidateDomains || [m.currentDomain]),
-          m.searchTemplate,
-          m.directUrlTemplate || null,
-          m.statusNote || null,
-          m.sortOrder || 0
-        );
-      }
+    // Initialize default registry: ensure all default mirrors are seeded
+    const insStmt = db.prepare(`
+      INSERT OR IGNORE INTO mirror_sources (
+        id, name, category, type, quality, audio, current_domain, candidate_domains,
+        search_template, direct_url_template, status_note, sort_order
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const m of DEFAULT_MIRROR_REGISTRY) {
+      insStmt.run(
+        m.id,
+        m.name,
+        m.category,
+        m.type,
+        m.quality || '1080p HD',
+        m.audio || 'Multi-Audio',
+        m.currentDomain,
+        JSON.stringify(m.candidateDomains || [m.currentDomain]),
+        m.searchTemplate,
+        m.directUrlTemplate || null,
+        m.statusNote || null,
+        m.sortOrder || 0
+      );
     }
 
     // Synchronize cached_media total_seasons with media_seasons count if media_seasons has more
@@ -326,6 +323,10 @@ function initSchema(db) {
       WHERE id IN (
         SELECT canonical_id FROM media_seasons GROUP BY canonical_id HAVING COUNT(*) > 1
       ) AND total_seasons < (SELECT COUNT(*) FROM media_seasons WHERE canonical_id = cached_media.id);
+
+      -- Ensure movies never have total_seasons or seasons_completed
+      UPDATE cached_media SET total_seasons = NULL WHERE media_type = 'Movie' OR format = 'Movie';
+      UPDATE catalog_items SET total_seasons = NULL, seasons_completed = 0 WHERE media_type = 'Movie';
     `);
 
     // Clean up redundant subsequent season records (e.g. "Title Season 2", "Title Season 3", "Title 2nd Season")
@@ -1308,14 +1309,19 @@ export function upsertCatalogItem(item, userId) {
     : (existing?.is_rewatching ? 1 : 0);
 
   const cachedForAdd = item.canonicalId ? getCanonicalMedia(item.canonicalId) : null;
-  const totalSeasonsVal = Math.max(
+  const isStandaloneSeason = !isMovie && Boolean(
+    item.isSeparateSeason ||
+    /(?:\bSeason\s*[2-9]|\bSeason\s*\d{2,}|\b[2-9]\d*(?:st|nd|rd|th)\s*Season|\bFinal\s*Season|\bSeason\s*Final|\bPart\s*[2-9]|\bCour\s*[2-9]|\bS[2-9]\b|\b(?:II|III|IV|V|VI)\b)/i.test(item.title || '')
+  );
+
+  const totalSeasonsVal = isMovie || isStandaloneSeason ? null : Math.max(
     item.totalSeasons || 1,
     cachedForAdd?.totalSeasons || 1,
     cachedForAdd?.seasons?.length || 1,
     existing?.total_seasons || 1
   );
-  const seasonsCompletedVal = item.seasonsCompleted !== undefined ? item.seasonsCompleted : (existing?.seasons_completed ?? 0);
-  const currentSeasonVal = item.currentSeason || (existing?.current_season || (seasonsCompletedVal > 0 ? seasonsCompletedVal + 1 : 1));
+  const seasonsCompletedVal = isMovie || isStandaloneSeason ? 0 : (item.seasonsCompleted !== undefined ? item.seasonsCompleted : (existing?.seasons_completed ?? 0));
+  const currentSeasonVal = isMovie ? null : (item.currentSeason || (existing?.current_season || (seasonsCompletedVal > 0 ? seasonsCompletedVal + 1 : 1)));
 
   stmt.run(
     id,

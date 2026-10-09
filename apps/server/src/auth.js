@@ -98,9 +98,9 @@ export function authMiddleware(req, res, next) {
     req.user = payload;
     req.userId = payload.userId || payload.id;
   } else {
-    // Default fallback for legacy / unauthenticated clients
-    req.user = { userId: DEFAULT_USER_ID, email: DEFAULT_USER_EMAIL };
-    req.userId = DEFAULT_USER_ID;
+    // Unauthenticated request
+    req.user = null;
+    req.userId = null;
   }
   next();
 }

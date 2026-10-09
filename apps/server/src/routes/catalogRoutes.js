@@ -15,19 +15,30 @@ import {
   getCanonicalMedia,
   getCatalogCharacters
 } from '../db.js';
-import { authMiddleware } from '../auth.js';
+import { authMiddleware, requireAuth } from '../auth.js';
 
 const router = express.Router();
 
-// Apply auth middleware to resolve authenticated user or fallback
+// Apply auth middleware to resolve authenticated user
 router.use(authMiddleware);
 
 // GET /api/catalog
 router.get('/', async (req, res) => {
   try {
+    if (!req.userId) {
+      return res.json({
+        success: true,
+        data: [],
+        count: 0,
+        page: 1,
+        limit: 25,
+        hasMore: false
+      });
+    }
+
     const { status, excludeStatus, type, sort, favorite, search, genre, animeFormat, format, character, page, limit, excludeIds = '' } = req.query;
     const pageNum = page ? Math.max(1, parseInt(page, 10) || 1) : undefined;
-    const limitNum = limit ? Math.max(1, Math.min(100, parseInt(limit, 10) || 24)) : undefined;
+    const limitNum = limit ? Math.max(1, Math.min(500, parseInt(limit, 10) || 25)) : undefined;
 
     const items = await getCatalogItems({
       status: status || 'All',
@@ -73,6 +84,28 @@ router.get('/characters', async (req, res) => {
 // GET /api/catalog/stats
 router.get('/stats', async (req, res) => {
   try {
+    if (!req.userId) {
+      return res.json({
+        success: true,
+        data: {
+          total: 0,
+          watching: 0,
+          wantToWatch: 0,
+          completed: 0,
+          onHold: 0,
+          dropped: 0,
+          favorites: 0,
+          episodesWatched: 0,
+          moviesWatched: 0,
+          showsWatched: 0,
+          animeWatched: 0,
+          genres: {},
+          topFranchises: [],
+          completionVelocity: 0,
+          ratingSpread: {}
+        }
+      });
+    }
     const stats = await getCatalogStats(req.userId);
     res.json({ success: true, data: stats });
   } catch (err) {
@@ -84,6 +117,9 @@ router.get('/stats', async (req, res) => {
 // GET /api/catalog/recommendations (More Like This based on 9-10 rated favorites)
 router.get('/recommendations', async (req, res) => {
   try {
+    if (!req.userId) {
+      return res.json({ success: true, count: 0, data: [] });
+    }
     const recs = await getCatalogRecommendations(req.userId);
     res.json({ success: true, count: recs.length, data: recs });
   } catch (err) {
@@ -95,6 +131,13 @@ router.get('/recommendations', async (req, res) => {
 // GET /api/catalog/check/:canonicalId
 router.get('/check/:canonicalId', async (req, res) => {
   try {
+    if (!req.userId) {
+      return res.json({
+        success: true,
+        inCatalog: false,
+        catalogItem: null
+      });
+    }
     const { canonicalId } = req.params;
     const item = await getCatalogItemByCanonicalId(canonicalId, req.userId);
     res.json({
@@ -109,7 +152,7 @@ router.get('/check/:canonicalId', async (req, res) => {
 });
 
 // GET /api/catalog/export
-router.get('/backup/export', async (req, res) => {
+router.get('/backup/export', requireAuth, async (req, res) => {
   try {
     const backup = await exportCatalogData();
     res.setHeader('Content-Type', 'application/json');
@@ -122,7 +165,7 @@ router.get('/backup/export', async (req, res) => {
 });
 
 // POST /api/catalog/import
-router.post('/backup/import', async (req, res) => {
+router.post('/backup/import', requireAuth, async (req, res) => {
   try {
     const result = await importCatalogData(req.body);
     res.json({ success: true, message: `Successfully restored ${result.importedCount || result.count} items.` });
@@ -133,7 +176,7 @@ router.post('/backup/import', async (req, res) => {
 });
 
 // GET /api/catalog/:id
-router.get('/:id', async (req, res) => {
+router.get('/:id', requireAuth, async (req, res) => {
   try {
     const item = await getCatalogItem(req.params.id, req.userId);
     if (!item) {
@@ -147,7 +190,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/catalog - Add or update title in catalog
-router.post('/', async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   try {
     const payload = req.body;
     if (!payload.canonicalId || !payload.title) {
@@ -175,7 +218,7 @@ router.post('/', async (req, res) => {
 });
 
 // PATCH /api/catalog/:id - Update status, rating, notes, favorite
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const existing = await getCatalogItem(id, req.userId);
@@ -198,7 +241,7 @@ router.patch('/:id', async (req, res) => {
 });
 
 // DELETE /api/catalog/:id
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const ok = await deleteCatalogItem(id, req.userId);
@@ -213,7 +256,7 @@ router.delete('/:id', async (req, res) => {
 });
 
 // POST /api/catalog/:id/progress - Toggle or set episode progress
-router.post('/:id/progress', async (req, res) => {
+router.post('/:id/progress', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { seasonNumber = 1, episodeNumber, isWatched = true } = req.body;
@@ -231,7 +274,7 @@ router.post('/:id/progress', async (req, res) => {
 });
 
 // POST /api/catalog/:id/batch-progress - Mark whole season as watched / unwatched
-router.post('/:id/batch-progress', async (req, res) => {
+router.post('/:id/batch-progress', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { seasonNumber = 1, episodeCount = 12, isWatched = true } = req.body;
@@ -252,7 +295,7 @@ router.post('/:id/batch-progress', async (req, res) => {
 });
 
 // POST /api/catalog/:id/seasons - Update completed seasons count and optional status
-router.post('/:id/seasons', async (req, res) => {
+router.post('/:id/seasons', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { seasonsCompleted, userStatus, syncEpisodes = true, currentSeason, totalSeasons } = req.body;

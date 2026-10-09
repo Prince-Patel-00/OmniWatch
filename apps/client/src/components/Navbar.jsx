@@ -62,21 +62,21 @@ export default function Navbar({
 
   return (
     <header className="sticky top-0 z-40 w-full backdrop-blur-2xl bg-zinc-950/90 border-b border-zinc-800/80 shadow-md shadow-black/40 transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3 sm:gap-6">
+      <div className="max-w-[1720px] w-full mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4 lg:gap-6">
         
         {/* Brand Logo & Workspaces */}
-        <div className="flex items-center gap-6 shrink-0">
+        <div className="flex items-center gap-3 sm:gap-6 shrink-0">
           <div
             onClick={() => onViewChange('global')}
-            className="flex items-center gap-3 cursor-pointer group select-none"
+            className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group select-none"
           >
-            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 via-rose-600 to-red-800 text-white shadow-lg shadow-red-950/60 group-hover:scale-105 group-hover:shadow-red-600/40 transition-all duration-300">
-              <Film className="w-5 h-5 text-white group-hover:rotate-6 transition-transform" />
+            <div className="relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-red-600 via-rose-600 to-red-800 text-white shadow-lg shadow-red-950/60 group-hover:scale-105 group-hover:shadow-red-600/40 transition-all duration-300">
+              <Film className="w-4 h-4 sm:w-5 sm:h-5 text-white group-hover:rotate-6 transition-transform" />
               <div className="absolute inset-0 rounded-xl ring-1 ring-white/25" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="text-xl font-black tracking-tight text-white drop-shadow-sm">
+                <span className="text-lg sm:text-xl font-black tracking-tight text-white drop-shadow-sm">
                   OMNI<span className="text-red-500 bg-gradient-to-r from-red-500 to-rose-400 bg-clip-text text-transparent">WATCH</span>
                 </span>
                 <span className="text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-red-500/15 text-red-400 border border-red-500/30">
@@ -89,11 +89,11 @@ export default function Navbar({
             </div>
           </div>
 
-          {/* Primary Workspace Nav (GLOBAL vs MY CATALOG vs INSIGHTS) */}
-          <nav className="flex items-center gap-1.5 pl-2 sm:pl-4 border-l border-zinc-800/80">
+          {/* Primary Workspace Nav (GLOBAL vs MY CATALOG vs INSIGHTS) - Desktop/Tablet */}
+          <nav className="hidden md:flex items-center gap-1.5 pl-2 sm:pl-4 border-l border-zinc-800/80">
             <button
               onClick={() => onViewChange('global')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
                 currentView === 'global'
                   ? 'bg-red-600 text-white shadow-md shadow-red-950/60 ring-1 ring-red-400/40'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-900/80'
@@ -105,7 +105,7 @@ export default function Navbar({
 
             <button
               onClick={() => onViewChange('want_to_watch')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all relative ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all relative ${
                 currentView === 'want_to_watch'
                   ? 'bg-amber-600 text-white shadow-md shadow-amber-950/60 ring-1 ring-amber-400/40'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-900/80'
@@ -122,7 +122,7 @@ export default function Navbar({
 
             <button
               onClick={() => onViewChange('catalog')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all relative ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all relative ${
                 currentView === 'catalog'
                   ? 'bg-zinc-800 text-white shadow-md shadow-zinc-900/60 ring-1 ring-zinc-700'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-900/80'
@@ -139,7 +139,7 @@ export default function Navbar({
 
             <button
               onClick={() => onViewChange('stats')}
-              className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+              className={`hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
                 currentView === 'stats'
                   ? 'bg-zinc-800 text-white shadow-md ring-1 ring-zinc-700'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-900/80'
@@ -151,8 +151,8 @@ export default function Navbar({
           </nav>
         </div>
 
-        {/* Universal Search Bar with Mode Switcher */}
-        <div className="flex-1 max-w-lg mx-2 sm:mx-4 relative">
+        {/* Universal Search Bar with Expanded Width & Screen Space Optimization */}
+        <div className="flex-1 max-w-xl md:max-w-2xl lg:max-w-3xl xl:max-w-4xl min-w-0 mx-1 sm:mx-3 relative">
           <div className={`relative flex items-center rounded-xl bg-zinc-900/90 border transition-all shadow-inner ${
             searchMode === 'character' || activeCharacter
               ? 'border-red-500/50 ring-1 ring-red-500/20'

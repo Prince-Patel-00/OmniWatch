@@ -1,11 +1,36 @@
-import { describe, it, after } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 const SERVER_BASE = 'http://localhost:5000/api';
 
+let authToken = null;
+const originalFetch = globalThis.fetch;
+globalThis.fetch = async (url, options = {}) => {
+  if (typeof url === 'string' && url.includes('/catalog') && authToken) {
+    const headers = { ...options.headers, Authorization: `Bearer ${authToken}` };
+    return originalFetch(url, { ...options, headers });
+  }
+  return originalFetch(url, options);
+};
+
 describe('OmniWatch 2.0 Complete End-to-End User Scenarios', () => {
   let scenario1CatalogItemId = null;
   let scenario2CatalogItemId = null;
+
+  before(async () => {
+    const res = await originalFetch(`${SERVER_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'makisanis106@gmail.com',
+        password: 'OutCast106'
+      })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      authToken = data.token;
+    }
+  });
 
   after(async () => {
     if (scenario1CatalogItemId) {

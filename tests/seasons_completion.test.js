@@ -1,9 +1,34 @@
-import { describe, it } from 'node:test';
+import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 
 const SERVER_BASE = 'http://localhost:5000/api';
 
+let authToken = null;
+const originalFetch = globalThis.fetch;
+globalThis.fetch = async (url, options = {}) => {
+  if (typeof url === 'string' && url.includes('/catalog') && authToken) {
+    const headers = { ...options.headers, Authorization: `Bearer ${authToken}` };
+    return originalFetch(url, { ...options, headers });
+  }
+  return originalFetch(url, options);
+};
+
 describe('OmniWatch Season Completion & Tracking Scenarios', () => {
+  before(async () => {
+    const res = await originalFetch(`${SERVER_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'makisanis106@gmail.com',
+        password: 'OutCast106'
+      })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      authToken = data.token;
+    }
+  });
+
   // Scenario 1: "FROM" series - Completed 3 seasons, remaining 4th, Want to Watch Season 4
   it('Scenario 1: Series with remaining upcoming seasons (FROM: 3 completed, Want to Watch S4)', async () => {
     const fromId = `test_from_${Date.now()}`;

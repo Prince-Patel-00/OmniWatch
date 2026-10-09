@@ -34,7 +34,9 @@ import {
   generateDefaultMirrors,
   DEFAULT_MIRROR_REGISTRY,
   QUALITIES,
-  SOURCE_TYPES
+  SOURCE_TYPES,
+  shouldDisplaySeasonCount,
+  isStandaloneSeasonRecord
 } from '@omniwatch/shared';
 import { addMediaSource, deleteMediaSource, checkMirrorsHealth, getMediaDetail } from '../services/api.js';
 
@@ -154,7 +156,10 @@ export default function MediaDetailModal({
 
   if (!media) return null;
 
-  const isEpisodic = media.mediaType === 'Anime' || media.mediaType === 'Series';
+  const isMovie = media.mediaType === 'Movie' || media.format === 'Movie' || media.isMovie;
+  const isEpisodic = !isMovie && (media.mediaType === 'Anime' || media.mediaType === 'Series');
+  const isStandaloneSeason = isStandaloneSeasonRecord(media);
+  const shouldShowSeasonHub = shouldDisplaySeasonCount(media);
   const timeUntilAiring = media.nextAiringAt ? formatTimeUntil(media.nextAiringAt) : null;
   const isAiring = media.status === 'Airing';
 
@@ -471,11 +476,11 @@ export default function MediaDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md overflow-y-auto animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-1 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md overflow-y-auto animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-5xl my-auto bg-zinc-950 rounded-3xl overflow-hidden border border-zinc-800 shadow-2xl max-h-[92vh] flex flex-col"
+        className="relative w-full max-w-5xl my-auto bg-zinc-950 rounded-2xl sm:rounded-3xl overflow-hidden border border-zinc-800 shadow-2xl max-h-[96vh] sm:max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Floating Close Button */}
@@ -688,8 +693,8 @@ export default function MediaDetailModal({
 
           </div>
 
-          {/* Season Completion & Granular Status Hub (For Series & Anime) */}
-          {isEpisodic && (
+          {/* Season Completion & Granular Status Hub (For Multi-Season Series & Anime) */}
+          {shouldShowSeasonHub && (
             <div className="mx-4 sm:mx-6 my-4 p-4 sm:p-5 rounded-2xl bg-zinc-900/80 border border-zinc-800 shadow-xl space-y-4">
               {/* Hub Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -977,7 +982,7 @@ export default function MediaDetailModal({
                     : 'text-zinc-400 border-transparent hover:text-zinc-200'
                   }`}
               >
-                {isEpisodic ? `Season & Episode Guide (${media.seasons?.length || 1})` : 'Episodes'}
+                {isEpisodic ? (!isStandaloneSeason && (media.seasons?.length > 1 || totalSeasonsCount > 1) ? `Season & Episode Guide (${media.seasons?.length || totalSeasonsCount})` : 'Episode Guide') : 'Episodes'}
               </button>
 
               <button

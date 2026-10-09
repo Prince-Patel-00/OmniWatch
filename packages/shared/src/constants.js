@@ -588,6 +588,21 @@ export const DEFAULT_MIRROR_REGISTRY = [
     directUrlTemplate: 'https://{domain}/',
     statusNote: 'Active .ws mirror sorted by seeders',
     sortOrder: 29
+  },
+  {
+    id: 'mwsguy',
+    name: 'MWSGuy Bulk Season Zip DL',
+    category: 'All',
+    type: 'Download',
+    quality: '1080p Bulk Season Zip',
+    audio: 'Dual Audio & Multi-Sub',
+    currentDomain: 'v1-mwsguy.blogspot.com',
+    candidateDomains: ['v1-mwsguy.blogspot.com'],
+    searchTemplate: 'https://{domain}/p/search.html#{slug}',
+    episodeTemplate: 'https://{domain}/p/search.html#{slug}-season-{season}',
+    directUrlTemplate: 'https://{domain}/p/search.html',
+    statusNote: 'Free bulk season zip & full batch downloads for series, anime & movies',
+    sortOrder: 30
   }
 ];
 
@@ -678,4 +693,31 @@ export function generateDefaultMirrors(media = {}, registry = DEFAULT_MIRROR_REG
       };
     });
 }
+
+/**
+ * Check if a title or record represents a standalone separate season entry
+ * (e.g. "Attack on Titan Season 2", "Jujutsu Kaisen Season 2", "Mob Psycho 100 II")
+ */
+export function isStandaloneSeasonRecord(media) {
+  if (!media) return false;
+  const isMovie = media.mediaType === 'Movie' || media.format === 'Movie' || media.isMovie;
+  if (isMovie) return false;
+  if (media.isSeparateSeason || media.seasonRecord) return true;
+  const title = (media.title || '').trim();
+  return /(?:\bSeason\s*[2-9]|\bSeason\s*\d{2,}|\b[2-9]\d*(?:st|nd|rd|th)\s*Season|\bFinal\s*Season|\bSeason\s*Final|\bPart\s*[2-9]|\bCour\s*[2-9]|\bS[2-9]\b|\b(?:II|III|IV|V|VI)\b)/i.test(title);
+}
+
+/**
+ * Determine if season count badges or steppers should be rendered for this record.
+ * Returns false for movies, standalone season records, and single-season shows.
+ */
+export function shouldDisplaySeasonCount(media) {
+  if (!media) return false;
+  const isMovie = media.mediaType === 'Movie' || media.format === 'Movie' || media.isMovie;
+  if (isMovie) return false;
+  if (isStandaloneSeasonRecord(media)) return false;
+  const total = media.totalSeasons;
+  return Boolean(total && total > 1);
+}
+
 

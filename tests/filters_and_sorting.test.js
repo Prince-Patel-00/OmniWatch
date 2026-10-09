@@ -1,9 +1,25 @@
-import { describe, it } from 'node:test';
+import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 
 const SERVER_BASE = 'http://localhost:5000/api';
 
 describe('OmniWatch Filters and Sorting Suite', () => {
+  let authToken = null;
+
+  before(async () => {
+    const res = await fetch(`${SERVER_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'makisanis106@gmail.com',
+        password: 'OutCast106'
+      })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      authToken = data.token;
+    }
+  });
 
   it('GET /api/global/trending with genre filter should return titles containing the selected genre', async () => {
     const res = await fetch(`${SERVER_BASE}/global/trending?genre=Action&limit=10`);
@@ -68,7 +84,10 @@ describe('OmniWatch Filters and Sorting Suite', () => {
       // 1. Seed two test items with distinct genres and ratings
       const resAction = await fetch(`${SERVER_BASE}/catalog`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+        },
         body: JSON.stringify({
           canonicalId: 'omni_test_action_title',
           mediaType: 'Anime',
@@ -85,7 +104,10 @@ describe('OmniWatch Filters and Sorting Suite', () => {
 
       const resComedy = await fetch(`${SERVER_BASE}/catalog`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+        },
         body: JSON.stringify({
           canonicalId: 'omni_test_comedy_title',
           mediaType: 'Anime',
@@ -101,7 +123,9 @@ describe('OmniWatch Filters and Sorting Suite', () => {
       comedyId = dataComedy.data?.id;
 
       // 2. Query catalog with genre=Action
-      const actionRes = await fetch(`${SERVER_BASE}/catalog?genre=Action`);
+      const actionRes = await fetch(`${SERVER_BASE}/catalog?genre=Action`, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
+      });
       assert.equal(actionRes.status, 200);
       const actionJson = await actionRes.json();
       assert.equal(actionJson.success, true);
@@ -111,7 +135,9 @@ describe('OmniWatch Filters and Sorting Suite', () => {
       assert.equal(hasComedyItem, false, 'Catalog with genre=Action should NOT include Beta Comedy Laugh Show');
 
       // 3. Query catalog with sort=rating_desc
-      const sortRes = await fetch(`${SERVER_BASE}/catalog?sort=rating_desc`);
+      const sortRes = await fetch(`${SERVER_BASE}/catalog?sort=rating_desc`, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
+      });
       assert.equal(sortRes.status, 200);
       const sortJson = await sortRes.json();
       assert.equal(sortJson.success, true);
@@ -122,8 +148,14 @@ describe('OmniWatch Filters and Sorting Suite', () => {
         assert.ok(cur >= next, `Catalog rating order violated: ${cur} < ${next}`);
       }
     } finally {
-      if (actionId) await fetch(`${SERVER_BASE}/catalog/${actionId}`, { method: 'DELETE' });
-      if (comedyId) await fetch(`${SERVER_BASE}/catalog/${comedyId}`, { method: 'DELETE' });
+      if (actionId) await fetch(`${SERVER_BASE}/catalog/${actionId}`, {
+        method: 'DELETE',
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
+      });
+      if (comedyId) await fetch(`${SERVER_BASE}/catalog/${comedyId}`, {
+        method: 'DELETE',
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
+      });
     }
   });
 

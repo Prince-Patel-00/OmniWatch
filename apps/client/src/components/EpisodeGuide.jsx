@@ -222,6 +222,30 @@ export default function EpisodeGuide({
 
         {/* Season Actions */}
         <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+          {/* Quick Next Season or Sequel Navigation Button */}
+          {selectedSeasonIdx < seasons.length - 1 ? (
+            <button
+              type="button"
+              onClick={() => setSelectedSeasonIdx(selectedSeasonIdx + 1)}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-red-600/20 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/40 transition-all shadow-sm"
+              title={`Navigate to Season ${seasons[selectedSeasonIdx + 1]?.seasonNumber || selectedSeasonIdx + 2}`}
+            >
+              <span>Next Season (S{seasons[selectedSeasonIdx + 1]?.seasonNumber || selectedSeasonIdx + 2})</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          ) : sequels.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => onSelectRelated && onSelectRelated(sequels[0])}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-emerald-950/80 hover:bg-emerald-800 text-emerald-300 hover:text-white border border-emerald-500/50 transition-all shadow-sm"
+              title={`Navigate to sequel: ${sequels[0].title}`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Sequel ({sequels[0].title})</span>
+              <ArrowRight className="w-3.5 h-3.5 text-emerald-400" />
+            </button>
+          ) : null}
+
           {onSetSeasonsCompleted && (
             <button
               onClick={() => onSetSeasonsCompleted(isCurrentSeasonDone ? seasonNum - 1 : seasonNum)}
@@ -485,6 +509,40 @@ export default function EpisodeGuide({
           </div>
         )}
       </div>
+
+      {/* Bottom Season Navigation Footer */}
+      {(selectedSeasonIdx < seasons.length - 1 || sequels.length > 0) && (
+        <div className="pt-3 border-t border-zinc-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 bg-zinc-900/40 p-3.5 rounded-2xl">
+          <div className="text-xs text-zinc-400">
+            {selectedSeasonIdx < seasons.length - 1
+              ? `Finished Season ${seasonNum}? Navigate to the next season.`
+              : `Finished all episodes in this season? Series continues in sequel franchise installment.`}
+          </div>
+          {selectedSeasonIdx < seasons.length - 1 ? (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedSeasonIdx(selectedSeasonIdx + 1);
+                window.scrollTo({ top: 150, behavior: 'smooth' });
+              }}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-md shadow-red-950/40 active:scale-95 transition-all cursor-pointer"
+            >
+              <span>Continue to Season {seasons[selectedSeasonIdx + 1]?.seasonNumber || selectedSeasonIdx + 2}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          ) : sequels.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => onSelectRelated && onSelectRelated(sequels[0])}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md shadow-emerald-950/40 active:scale-95 transition-all cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-emerald-200" />
+              <span>Next Season: {sequels[0].title}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }

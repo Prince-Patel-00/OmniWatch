@@ -1,9 +1,25 @@
-import { describe, it } from 'node:test';
+import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 
 const SERVER_BASE = 'http://localhost:5000/api';
 
 describe('OmniWatch Strict Pagination Non-Overlap Suite', () => {
+  let authToken = null;
+
+  before(async () => {
+    const res = await fetch(`${SERVER_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'makisanis106@gmail.com',
+        password: 'OutCast106'
+      })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      authToken = data.token;
+    }
+  });
 
   it('GET /api/global/trending across pages 1, 2, and 3 should have 0 overlapping titles', async () => {
     const seen = new Set();
@@ -32,7 +48,7 @@ describe('OmniWatch Strict Pagination Non-Overlap Suite', () => {
     const duplicates = [];
 
     for (let p = 1; p <= 2; p++) {
-      const res = await fetch(`${SERVER_BASE}/global/trending?type=Series&page=${p}&limit=24`);
+      const res = await fetch(`${SERVER_BASE}/global/trending?type=Series&page=${p}&limit=25`);
       assert.equal(res.status, 200);
       const json = await res.json();
       assert.equal(json.success, true);
@@ -95,7 +111,9 @@ describe('OmniWatch Strict Pagination Non-Overlap Suite', () => {
     const duplicates = [];
 
     for (let p = 1; p <= 2; p++) {
-      const res = await fetch(`${SERVER_BASE}/catalog?page=${p}&limit=10`);
+      const res = await fetch(`${SERVER_BASE}/catalog?page=${p}&limit=10`, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
+      });
       assert.equal(res.status, 200);
       const json = await res.json();
       assert.equal(json.success, true);
@@ -112,7 +130,9 @@ describe('OmniWatch Strict Pagination Non-Overlap Suite', () => {
   });
 
   it('GET /api/catalog with status=Want to Watch should return exclusively Want to Watch items', async () => {
-    const res = await fetch(`${SERVER_BASE}/catalog?status=Want+to+Watch&limit=50`);
+    const res = await fetch(`${SERVER_BASE}/catalog?status=Want+to+Watch&limit=50`, {
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
+    });
     assert.equal(res.status, 200);
     const json = await res.json();
     assert.equal(json.success, true);
@@ -122,7 +142,9 @@ describe('OmniWatch Strict Pagination Non-Overlap Suite', () => {
   });
 
   it('GET /api/catalog with excludeStatus=Want to Watch should exclude all Want to Watch items', async () => {
-    const res = await fetch(`${SERVER_BASE}/catalog?excludeStatus=Want+to+Watch&limit=50`);
+    const res = await fetch(`${SERVER_BASE}/catalog?excludeStatus=Want+to+Watch&limit=50`, {
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
+    });
     assert.equal(res.status, 200);
     const json = await res.json();
     assert.equal(json.success, true);
@@ -131,12 +153,28 @@ describe('OmniWatch Strict Pagination Non-Overlap Suite', () => {
     }
   });
 
-  it('GET /api/global/trending with limit=24 should return exactly 24 uniform items', async () => {
-    const res = await fetch(`${SERVER_BASE}/global/trending?limit=24&page=1`);
+  it('GET /api/global/trending with limit=25 should return exactly 25 uniform items', async () => {
+    const res = await fetch(`${SERVER_BASE}/global/trending?limit=25&page=1`);
     assert.equal(res.status, 200);
     const json = await res.json();
     assert.equal(json.success, true);
-    assert.equal(json.data.length, 24, 'Must return exactly uniform 24 items per page');
+    assert.equal(json.data.length, 25, 'Must return exactly uniform 25 items per page');
+  });
+
+  it('GET /api/global/trending with limit=50 should return uniform items clamped correctly', async () => {
+    const res = await fetch(`${SERVER_BASE}/global/trending?limit=50&page=1`);
+    assert.equal(res.status, 200);
+    const json = await res.json();
+    assert.equal(json.success, true);
+    assert.equal(json.limit, 50);
+  });
+
+  it('GET /api/global/trending with limit=100 should return uniform items clamped correctly', async () => {
+    const res = await fetch(`${SERVER_BASE}/global/trending?limit=100&page=1`);
+    assert.equal(res.status, 200);
+    const json = await res.json();
+    assert.equal(json.success, true);
+    assert.equal(json.limit, 100);
   });
 
 });
