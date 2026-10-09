@@ -1,23 +1,23 @@
 # STATE.md — OmniWatch Project State
 
-**Current Milestone:** v2.5 OmniWatch Core Rebuild  
-**Status:** Phase 2 Complete, Verified 73/73 Tests Passing  
-**Active Phase:** Phase 2 (UI Overhaul & Pagination) — COMPLETE  
-**Last Action:** Removed Hero Spotlight, separated Want to Watch into dedicated primary section, deduplicated watch sources, overhauled Pagination UI and uniform page limits. Client build and 73 tests pass with 0 errors.  
-**Date:** 2026-10-08
+**Current Milestone:** v2.6 Vercel Cloud Deployment & Serverless Production  
+**Status:** Milestone Planned (Ready for Phase 1 Execution)  
+**Active Phase:** Phase 1: Serverless Database & Runtime Hardening  
+**Last Action:** Milestone created via `/gsd-new-milestone`. Defined requirements, phase breakdown, and verification gates for Vercel deployment with Neon PostgreSQL and GitHub integration.  
+**Date:** 2026-10-09  
 
 ## Progress Overview
 
 | Phase | Description | Status |
 |---|---|---|
-| Phase 1 | User Authentication & Isolated Catalogs (SQLite & Neon) | COMPLETE (100% Verified) |
-| Phase 2 | UI Cleanup, Navigation & Strict Pagination | COMPLETE (100% Verified) |
-| Phase 3 | Unified Season & Episode Architecture & Direct Launchers | Next Up |
-| Phase 4 | Dynamic Mirror Registry Automation | Pending Phase 1 |
-| Phase 5 | Taste Insights & "More Like This" Recommendation Engine | Pending Phase 3 |
+| Phase 1 | Serverless Database & Runtime Hardening (Neon Postgres & SQLite Decoupling) | ⬜ Not Started |
+| Phase 2 | Vercel Monorepo Rewrites & Serverless Handler | ⬜ Not Started |
+| Phase 3 | Cloud Health Check, Security & Environment Secrets | ⬜ Not Started |
+| Phase 4 | Build Verification, Smoke Tests & Vercel Launch Guide | ⬜ Not Started |
 
 ## Session Continuity
-- Total catalog items in SQLite: 208 records successfully migrated to `makisanis106@gmail.com` (`user_makisanis106`).
-- Test suite: 73 tests passing across 11 suites (`npm test` passes with 0 failures).
-- Default user: `makisanis106@gmail.com` with password `OutCast106`.
-- Production build: `npm run build --workspace=apps/client` succeeds in 6.7s without errors.
+- Deployment Strategy: Automated GitHub CI/CD via Vercel Dashboard integration.
+- Database Driver: Neon Serverless PostgreSQL (`@neondatabase/serverless`) with connection pooling (`DATABASE_URL`).
+- Frontend: Vite React SPA (`apps/client/dist`) with SPA catch-all rewrite.
+- Backend: Serverless Express function (`api/index.js`) handling `/api/(.*)`.
+- Next Step: Execute Phase 1 (`/plan 1` or `/gsd-plan-phase 1`).
