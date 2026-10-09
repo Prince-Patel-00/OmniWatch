@@ -48,7 +48,18 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json({ limit: '10mb' }));
-app.use(morgan('dev'));
+
+// Serverless socket fallback for IP resolution & logging
+app.use((req, res, next) => {
+  if (!req.socket) {
+    req.socket = { remoteAddress: req.headers?.['x-forwarded-for'] || '127.0.0.1' };
+  }
+  next();
+});
+
+if (process.env.NODE_ENV !== 'test') {
+  app.use(morgan('dev'));
+}
 
 // Ensure DB is initialized before processing API routes
 app.use(async (req, res, next) => {
