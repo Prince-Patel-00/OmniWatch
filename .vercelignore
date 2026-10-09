@@ -1,0 +1,17 @@
+.vs
+.vscode
+.idea
+.git
+.gemini
+.agent
+.agents
+.planning
+.gsd
+.codex
+.ralph
+scratch
+tests
+adapters
+scripts
+*.db
+*.log
