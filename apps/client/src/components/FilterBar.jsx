@@ -56,6 +56,7 @@ export default function FilterBar({
   onToggleFavorite,
   onResetFilters,
   resultCount = 0,
+  totalResultCount = null,
   globalTab = 'trending', // 'trending' | 'upcoming'
   onGlobalTabChange,
   hideInCatalog = true,
@@ -485,7 +486,10 @@ export default function FilterBar({
 
         {/* Result Counter */}
         <div className="text-zinc-500 text-xs font-medium">
-          Showing <span className="font-bold text-zinc-300">{resultCount}</span> titles
+          Showing <span className="font-bold text-zinc-300">{resultCount}</span>
+          {totalResultCount !== null && totalResultCount !== undefined && totalResultCount > resultCount ? (
+            <span> of <strong className="text-zinc-200">{totalResultCount}</strong></span>
+          ) : null} titles
         </div>
       </div>
     </div>

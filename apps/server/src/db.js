@@ -1120,6 +1120,10 @@ export function getCatalogItems(opts = {}) {
       break;
   }
 
+  const countSql = sql.replace('SELECT * FROM catalog_items', 'SELECT COUNT(*) as count FROM catalog_items');
+  const countRow = db.prepare(countSql).get(...params);
+  const totalCount = countRow ? countRow.count : 0;
+
   if (page !== undefined && limit !== undefined) {
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, parseInt(limit, 10) || 24);
@@ -1129,7 +1133,9 @@ export function getCatalogItems(opts = {}) {
   }
 
   const rows = db.prepare(sql).all(...params);
-  return rows.map(r => hydrateCatalogItem(db, r, targetUserId));
+  const mapped = rows.map(r => hydrateCatalogItem(db, r, targetUserId));
+  mapped.totalCount = totalCount;
+  return mapped;
 }
 
 export function getCatalogItem(id, userId) {
@@ -1715,6 +1721,7 @@ export function getCatalogStats(userId) {
 
   return {
     totalTitles,
+    totalItems: totalTitles,
     favoriteCount,
     watchedEpisodesCount: watchedEpsCount,
     estimatedHoursWatched: estimatedHours,

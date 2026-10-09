@@ -72,6 +72,7 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [hasMore, setHasMore] = useState(false);
+  const [catalogTotalCount, setCatalogTotalCount] = useState(null);
 
   // Request counter to ensure stale async responses never overwrite active view
   const activeRequestIdRef = useRef(0);
@@ -108,6 +109,7 @@ export default function App() {
     setCurrentUser(null);
     setCatalogItems([]);
     setCatalogMediaList([]);
+    setCatalogTotalCount(null);
     setStats(null);
     seenPagesRef.current.clear();
     setCurrentView('global');
@@ -214,6 +216,7 @@ export default function App() {
         if (res.success) {
           setCatalogMediaList(res.data || []);
           setHasMore(Boolean(res.hasMore));
+          setCatalogTotalCount(res.total ?? res.count ?? (res.data || []).length);
           seenPagesRef.current.set(currentPage, (res.data || []).map((m) => m.id || m.canonicalId).filter(Boolean));
         }
       } else if (requestedView === 'catalog') {
@@ -243,6 +246,7 @@ export default function App() {
         if (res.success) {
           setCatalogMediaList(res.data || []);
           setHasMore(Boolean(res.hasMore));
+          setCatalogTotalCount(res.total ?? res.count ?? (res.data || []).length);
           seenPagesRef.current.set(currentPage, (res.data || []).map((m) => m.id || m.canonicalId).filter(Boolean));
         }
       } else if (requestedView === 'global') {
@@ -568,6 +572,7 @@ export default function App() {
     setSearchQuery('');
     setActiveCharacter('');
     setSearchMode('all');
+    setCatalogTotalCount(null);
     setCurrentPage(1);
   };
 
@@ -777,7 +782,7 @@ export default function App() {
   };
 
   const wantToWatchCount = stats?.byStatus?.['Want to Watch'] ?? catalogItems.filter(i => i.userStatus === 'Want to Watch').length;
-  const catalogCount = Math.max(0, (stats?.totalItems ?? catalogItems.length) - wantToWatchCount);
+  const catalogCount = Math.max(0, (stats?.totalTitles ?? stats?.totalItems ?? catalogItems.length) - wantToWatchCount);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans selection:bg-red-600 selection:text-white overflow-x-hidden max-w-full w-full">
@@ -850,6 +855,13 @@ export default function App() {
               onToggleFavorite={() => setFavoriteOnly(!favoriteOnly)}
               onResetFilters={handleResetFilters}
               resultCount={displayItems.length}
+              totalResultCount={
+                currentView === 'catalog'
+                  ? (catalogTotalCount ?? catalogCount)
+                  : (currentView === 'want_to_watch'
+                    ? (catalogTotalCount ?? wantToWatchCount)
+                    : null)
+              }
               globalTab={globalTab}
               onGlobalTabChange={setGlobalTab}
               hideInCatalog={hideInCatalog}
@@ -915,7 +927,13 @@ export default function App() {
                       setPageSize(size);
                       setCurrentPage(1);
                     }}
-                    totalCount={currentView === 'catalog' ? catalogCount : (currentView === 'want_to_watch' ? wantToWatchCount : null)}
+                    totalCount={
+                      currentView === 'catalog'
+                        ? (catalogTotalCount ?? catalogCount)
+                        : (currentView === 'want_to_watch'
+                          ? (catalogTotalCount ?? wantToWatchCount)
+                          : null)
+                    }
                     isLoading={loading}
                   />
                 )}

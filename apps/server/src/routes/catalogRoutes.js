@@ -55,13 +55,16 @@ router.get('/', async (req, res) => {
       excludeIds,
       userId: req.userId
     });
+    const totalCount = items.totalCount !== undefined ? items.totalCount : items.length;
     res.json({
       success: true,
       data: items,
-      count: items.length,
+      count: totalCount,
+      total: totalCount,
       page: pageNum || 1,
       limit: limitNum || items.length,
-      hasMore: limitNum ? items.length >= limitNum : false
+      totalPages: limitNum ? Math.max(1, Math.ceil(totalCount / limitNum)) : 1,
+      hasMore: limitNum ? (pageNum || 1) * limitNum < totalCount : false
     });
   } catch (err) {
     console.error('Error fetching catalog:', err);

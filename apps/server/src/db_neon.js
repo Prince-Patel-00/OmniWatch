@@ -724,7 +724,7 @@ export async function getCachedTrending({ type = 'All', animeFormat = 'All', lim
 
 export async function getCatalogItems(filters = {}) {
   const sql = getSql();
-  const { status = 'All', excludeStatus = '', type = 'All', sort = 'updated_desc', favoriteOnly = false, search = '', genre = 'All', animeFormat = 'All', page = 1, limit = 24, userId } = filters;
+  const { status = 'All', excludeStatus = '', type = 'All', sort = 'updated_desc', favoriteOnly = false, search = '', genre = 'All', animeFormat = 'All', page, limit, userId } = filters;
   const targetUserId = userId || 'user_makisanis106';
 
   const rows = await sql`
@@ -770,6 +770,12 @@ export async function getCatalogItems(filters = {}) {
     filtered = filtered.filter(i => (i.title || '').toLowerCase().includes(q));
   }
 
+  const excludeList = (typeof filters.excludeIds === 'string' ? filters.excludeIds.split(',') : Array.from(filters.excludeIds || [])).map(s => String(s).trim()).filter(Boolean);
+  if (excludeList.length > 0) {
+    const excludeSet = new Set(excludeList);
+    filtered = filtered.filter(i => !excludeSet.has(i.id) && (!i.canonical_id || !excludeSet.has(i.canonical_id)));
+  }
+
   // Sorting
   filtered.sort((a, b) => {
     if (sort === 'rating_desc') return (b.user_rating || 0) - (a.user_rating || 0);
@@ -778,8 +784,16 @@ export async function getCatalogItems(filters = {}) {
     return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
   });
 
-  const offset = (Math.max(1, page) - 1) * limit;
-  return filtered.slice(offset, offset + limit).map(row => {
+  const totalCount = filtered.length;
+  let result = filtered;
+  if (limit !== undefined || page !== undefined) {
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.max(1, parseInt(limit, 10) || 24);
+    const offset = excludeList.length > 0 ? 0 : (pageNum - 1) * limitNum;
+    result = filtered.slice(offset, offset + limitNum);
+  }
+
+  const mapped = result.map(row => {
     const totalSeasons = Math.max(row.total_seasons || 1, row.canonical_total_seasons || 1);
     const seasonsCompleted = (row.seasons_completed !== null && row.seasons_completed !== undefined)
       ? row.seasons_completed
@@ -814,6 +828,8 @@ export async function getCatalogItems(filters = {}) {
       synopsis: row.synopsis
     };
   });
+  mapped.totalCount = totalCount;
+  return mapped;
 }
 
 export async function getCatalogItem(id, userId) {
@@ -1188,6 +1204,7 @@ export async function getCatalogStats(userId) {
 
   return {
     totalTitles,
+    totalItems: totalTitles,
     favoriteCount: rows.filter((r) => Boolean(r.is_favorite)).length,
     watchedEpisodesCount: epRows[0]?.cnt || 0,
     estimatedHoursWatched: Math.round(((epRows[0]?.cnt || 0) * 30) / 60),
