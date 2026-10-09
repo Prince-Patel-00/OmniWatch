@@ -19,8 +19,8 @@ Deliver a zero-friction, production-ready Vercel deployment for OmniWatch using:
 
 ## 2. Functional Requirements
 
-### REQ-VERCEL-01: Serverless Runtime & Database Decoupling
-- **Description:** `apps/server/src/db.js` must conditionally load `node:sqlite` so that when running in environments where Neon Postgres is configured (`DATABASE_URL`), the server does not throw errors due to missing or unsupported native `node:sqlite` modules in serverless runtimes.
+### REQ-VERCEL-01: Serverless Runtime & Database Decoupling [COMPLETE]
+- **Status:** ✅ VERIFIED (Plan 1.1 & Plan 1.2)
 - **Acceptance Criteria:**
   - Running server with `DATABASE_URL` set works seamlessly without attempting to create local SQLite databases or importing incompatible native modules.
   - Cold starts on Vercel initialize `neonDB` correctly within 500ms.
