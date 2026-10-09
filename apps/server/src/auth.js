@@ -1,6 +1,11 @@
 import crypto from 'node:crypto';
 
-const JWT_SECRET = process.env.AUTH_JWT_SECRET || 'omniwatch-jwt-secret-2026-secure-salt';
+const JWT_SECRET = process.env.JWT_SECRET || process.env.AUTH_JWT_SECRET || 'omniwatch-jwt-secret-2026-secure-salt';
+
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET && !process.env.AUTH_JWT_SECRET) {
+  console.warn('⚠️ [Security] JWT_SECRET is not set in production environment variables. Using default fallback.');
+}
+
 export const DEFAULT_USER_ID = 'user_makisanis106';
 export const DEFAULT_USER_EMAIL = 'makisanis106@gmail.com';
 

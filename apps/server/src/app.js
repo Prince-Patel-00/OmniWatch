@@ -80,12 +80,32 @@ app.use('/api/system', systemRoutes);
 app.use('/api/mirrors', mirrorRoutes);
 
 // Health check
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
+app.get('/api/health', async (req, res) => {
+  const start = Date.now();
+  let dbStatus = 'connected';
+  let dbError = null;
+
+  try {
+    await ensureDB();
+  } catch (err) {
+    dbStatus = 'disconnected';
+    dbError = err.message;
+  }
+
+  const latency = Date.now() - start;
+  const isHealthy = dbStatus === 'connected';
+
+  res.status(isHealthy ? 200 : 503).json({
+    status: isHealthy ? 'ok' : 'degraded',
     service: 'OmniWatch Unified Hub API',
     version: '2.0.0',
-    database: isNeon() ? 'Neon Serverless PostgreSQL' : 'SQLite (node:sqlite WAL mode)',
+    environment: process.env.NODE_ENV || 'development',
+    database: {
+      engine: isNeon() ? 'Neon Serverless PostgreSQL' : 'SQLite (node:sqlite WAL mode)',
+      status: dbStatus,
+      latencyMs: latency,
+      error: dbError
+    },
     timestamp: new Date().toISOString()
   });
 });
