@@ -3,6 +3,7 @@ import { generateDefaultMirrors, DEFAULT_MIRROR_REGISTRY, normalizeTitle } from 
 import { hashPassword, DEFAULT_USER_ID, DEFAULT_USER_EMAIL } from './auth.js';
 
 let sqlClient = null;
+let schemaInitialized = false;
 
 function getSql() {
   const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
@@ -16,6 +17,9 @@ function getSql() {
 }
 
 export async function initDB() {
+  if (schemaInitialized) {
+    return;
+  }
   const sql = getSql();
 
   // Create tables in PostgreSQL
@@ -280,8 +284,9 @@ export async function initDB() {
     `;
   }
 
-  console.log('✅ [Neon PostgreSQL] Database schema initialized successfully');
-}
+    console.log('✅ [Neon PostgreSQL] Database schema initialized successfully');
+    schemaInitialized = true;
+  }
 
 export async function saveCanonicalMedia(media) {
   if (!media || !media.id) return null;
