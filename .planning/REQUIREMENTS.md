@@ -43,11 +43,11 @@ Deliver a zero-friction, production-ready Vercel deployment for OmniWatch using:
 - **Acceptance Criteria:**
   - `GET /api/health` returns `200 OK` with JSON `{ status: 'ok', database: 'neon', timestamp: '...' }`.
 
-### REQ-VERCEL-05: Build Reliability & Deployment Guide
-- **Description:** Monorepo root build script `npm run build` must cleanly build the client and prepare all shared workspace packages for Vercel.
+### REQ-VERCEL-05: Build Reliability & Deployment Guide [COMPLETE]
+- **Status:** ✅ VERIFIED (Plan 4.1)
 - **Acceptance Criteria:**
   - `npm run build` exits with code 0 in under 15 seconds.
-  - Comprehensive guide documenting required Vercel Environment Variables (`DATABASE_URL`, `TMDB_API_KEY`, `JWT_SECRET`, `NODE_ENV=production`) provided for the user.
+  - Comprehensive guide documenting required Vercel Environment Variables (`DATABASE_URL`, `TMDB_API_KEY`, `JWT_SECRET`, `NODE_ENV=production`) provided for the user in `VERCEL_DEPLOYMENT.md`.
 
 ---
 
