@@ -184,13 +184,23 @@ export class TVMazeProvider extends BaseProvider {
       totalEpisodes,
       nextAiringEpisode: null,
       nextAiringAt: null,
-      providerMappings: [
-        {
-          provider: 'tvmaze',
-          id: show.id,
-          url: show.url
+      providerMappings: (() => {
+        const mappings = [
+          {
+            provider: 'tvmaze',
+            id: show.id,
+            url: show.url
+          }
+        ];
+        if (show.externals?.imdb) {
+          mappings.push({
+            provider: 'imdb',
+            id: show.externals.imdb,
+            url: `https://www.imdb.com/title/${show.externals.imdb}/`
+          });
         }
-      ],
+        return mappings;
+      })(),
       seasons,
       trailers: [],
       watchProviders,

@@ -86,21 +86,21 @@ export default function FilterBar({
     (activeType === 'Anime' && animeSubTab !== 'All');
 
   return (
-    <div className="space-y-4 mb-6">
+    <div className="space-y-4 mb-6 w-full min-w-0">
       {/* Top Filter Row: Media Types, Anime Sub-tabs & Discovery Modes */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 w-full min-w-0">
 
         {/* Media Type Tabs & Anime Sub-tabs */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 max-w-full min-w-0">
           {/* Main Media Type Tabs: All, Anime, Movie, Series */}
-          <div className="flex items-center gap-1.5 p-1 bg-zinc-900/90 rounded-2xl border border-zinc-800/80 max-w-fit shadow-inner">
+          <div className="flex items-center gap-1 sm:gap-1.5 p-1 bg-zinc-900/90 rounded-2xl border border-zinc-800/80 shadow-inner overflow-x-auto max-w-full scrollbar-none">
             {['All', ...MEDIA_TYPES_LIST].map((type) => {
               const isActive = activeType === type;
               return (
                 <button
                   key={type}
                   onClick={() => onTypeSelect(type)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${isActive
+                  className={`px-2.5 sm:px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${isActive
                     ? 'bg-red-600 text-white shadow-md shadow-red-950/50'
                     : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
                     }`}
@@ -113,8 +113,8 @@ export default function FilterBar({
 
           {/* Anime Dedicated Sub-tabs: All Anime, Series, Movies */}
           {activeType === 'Anime' && (
-            <div className="flex items-center gap-1 p-1 bg-zinc-900/95 rounded-2xl border border-red-500/30 max-w-fit shadow-md shadow-red-950/20 animate-in fade-in slide-in-from-left-2 duration-200">
-              <span className="text-[10px] font-black text-red-400 px-2 uppercase tracking-wider flex items-center gap-1">
+            <div className="flex items-center gap-1 p-1 bg-zinc-900/95 rounded-2xl border border-red-500/30 shadow-md shadow-red-950/20 overflow-x-auto max-w-full scrollbar-none animate-in fade-in slide-in-from-left-2 duration-200">
+              <span className="text-[10px] font-black text-red-400 px-2 uppercase tracking-wider flex items-center gap-1 whitespace-nowrap">
                 <Sparkles className="w-3 h-3 text-red-400" />
                 Anime:
               </span>
@@ -129,7 +129,7 @@ export default function FilterBar({
                   <button
                     key={sub.id}
                     onClick={() => onAnimeSubTabChange && onAnimeSubTabChange(sub.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${isSubActive
+                    className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${isSubActive
                       ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-sm'
                       : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
                       }`}
@@ -145,7 +145,7 @@ export default function FilterBar({
 
         {/* Global Sub-tabs (Trending vs Upcoming) OR Catalog Status Chips */}
         {!isCatalog ? (
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full scrollbar-none flex-nowrap">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full w-full min-w-0 scrollbar-none flex-nowrap">
             <button
               onClick={() => onGlobalTabChange('trending')}
               className={`shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all whitespace-nowrap ${globalTab === 'trending'
@@ -269,7 +269,7 @@ export default function FilterBar({
       )}
 
       {/* Main Character Filter Carousel / Pill Strip */}
-      <div className="p-2.5 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 shadow-inner space-y-2">
+      <div className="p-2 sm:p-2.5 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 shadow-inner space-y-2 w-full min-w-0 overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-xs font-bold text-zinc-300">
             <div className="p-1 rounded-lg bg-red-500/15 text-red-400 border border-red-500/30">
@@ -301,8 +301,8 @@ export default function FilterBar({
                   autoFocus
                   value={charSearchInput}
                   onChange={(e) => setCharSearchInput(e.target.value)}
-                  placeholder="e.g. Andrew Garfield, Batman, Zendaya..."
-                  className="px-2.5 py-1 text-xs rounded-lg bg-zinc-950 border border-red-500/50 text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-red-500 w-52"
+                  placeholder="e.g. Andrew Garfield, Batman..."
+                  className="px-2.5 py-1 text-xs rounded-lg bg-zinc-950 border border-red-500/50 text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-red-500 w-36 sm:w-52"
                 />
                 <button
                   type="submit"
@@ -323,7 +323,7 @@ export default function FilterBar({
         </div>
 
         {/* Character Quick-Filter Chips */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none pt-0.5">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none pt-0.5 w-full min-w-0">
           {POPULAR_LEAD_CAST.map((char) => {
             const isSelected = activeCharacter.toLowerCase() === char.name.toLowerCase();
             return (
@@ -446,16 +446,16 @@ export default function FilterBar({
       )}
 
       {/* Secondary Controls: Genre, Sort & Counter */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-zinc-800/50 text-xs">
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 pt-1 border-t border-zinc-800/50 text-xs w-full min-w-0">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
 
           {/* Genre Dropdown */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <span className="text-zinc-500 font-medium">Genre:</span>
             <select
               value={activeGenre}
               onChange={(e) => onGenreSelect(e.target.value)}
-              className="bg-zinc-900 text-zinc-200 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs font-semibold focus:outline-none focus:border-red-500 cursor-pointer"
+              className="bg-zinc-900 text-zinc-200 border border-zinc-800 rounded-lg px-2 sm:px-2.5 py-1 text-xs font-semibold focus:outline-none focus:border-red-500 cursor-pointer max-w-[130px] sm:max-w-none"
             >
               <option value="All">All Genres</option>
               {GENRES.map((g) => (
@@ -467,12 +467,12 @@ export default function FilterBar({
           </div>
 
           {/* Sort Dropdown */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <span className="text-zinc-500 font-medium">Sort By:</span>
             <select
               value={activeSort}
               onChange={(e) => onSortSelect(e.target.value)}
-              className="bg-zinc-900 text-zinc-200 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs font-semibold focus:outline-none focus:border-red-500 cursor-pointer"
+              className="bg-zinc-900 text-zinc-200 border border-zinc-800 rounded-lg px-2 sm:px-2.5 py-1 text-xs font-semibold focus:outline-none focus:border-red-500 cursor-pointer max-w-[140px] sm:max-w-none"
             >
               {(isCatalog ? SORT_OPTIONS : GLOBAL_SORT_OPTIONS).map((opt) => (
                 <option key={opt.value} value={opt.value}>

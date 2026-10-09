@@ -118,7 +118,7 @@ export default function StatsDashboard({ stats, onNavigateToCatalog, onNavigateT
           </div>
 
           {/* Taste Persona Badge */}
-          <div className="flex flex-col items-start md:items-end justify-center p-4 rounded-2xl bg-zinc-900/80 border border-zinc-700/60 shadow-lg min-w-[220px]">
+          <div className="flex flex-col items-start md:items-end justify-center p-4 rounded-2xl bg-zinc-900/80 border border-zinc-700/60 shadow-lg w-full sm:w-auto sm:min-w-[220px]">
             <div className="flex items-center gap-2 text-amber-400 mb-1">
               <Award className="w-4 h-4" />
               <span className="text-xs font-bold uppercase tracking-wider">Taste Persona</span>

@@ -58,16 +58,16 @@ export default function MediaCard({
         <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-black/40 opacity-80" />
 
         {/* Top Floating Badges */}
-        <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1 pointer-events-none">
+        <div className="absolute top-2 left-2 right-2 flex items-center justify-between gap-1 pointer-events-none">
           {/* Media Type */}
-          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider text-white shadow-md backdrop-blur-md ${media.mediaType === 'Anime' && isMovie ? 'bg-purple-600/90' : 'bg-red-600/90'
+          <span className={`px-1.5 sm:px-2 py-0.5 rounded-md text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-white shadow-md backdrop-blur-md truncate max-w-[85px] sm:max-w-none ${media.mediaType === 'Anime' && isMovie ? 'bg-purple-600/90' : 'bg-red-600/90'
             }`}>
             {media.mediaType === 'Anime' ? (isMovie ? 'Anime Movie' : 'Anime') : media.mediaType}
           </span>
 
           {/* Rating */}
           {media.rating && (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-extrabold bg-zinc-950/80 text-amber-300 border border-amber-500/30 backdrop-blur-md">
+            <span className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-extrabold bg-zinc-950/80 text-amber-300 border border-amber-500/30 backdrop-blur-md shrink-0">
               <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
               {media.rating.toFixed(1)}
             </span>
@@ -86,7 +86,7 @@ export default function MediaCard({
 
           {/* Catalog Tracking Status Pill or Default Not Started */}
           {userStatus ? (
-            <div className={`flex items-center justify-between gap-1 px-2.5 py-1 rounded-lg backdrop-blur-md text-[11px] font-bold shadow-md border ${
+            <div className={`flex items-center justify-between gap-1 px-2 py-1 rounded-lg backdrop-blur-md text-[10px] sm:text-[11px] font-bold shadow-md border min-w-0 ${
               userStatus === 'Dropped'
                 ? 'bg-rose-950/90 border-rose-500/40 text-rose-300'
                 : userStatus === 'On Hold'
@@ -95,15 +95,15 @@ export default function MediaCard({
                 ? 'bg-zinc-950/90 border-amber-500/40 text-amber-300'
                 : 'bg-zinc-950/90 border-emerald-500/30 text-emerald-400'
             }`}>
-              <div className="flex items-center gap-1 truncate">
+              <div className="flex items-center gap-1 truncate min-w-0 flex-1">
                 <BookmarkCheck className={`w-3.5 h-3.5 shrink-0 ${
                   userStatus === 'Dropped' ? 'text-rose-400' : userStatus === 'On Hold' ? 'text-blue-400' : userStatus === 'Want to Watch' ? 'text-amber-400' : 'text-emerald-400'
                 }`} />
                 <span className="truncate">
                   {userStatus === 'Dropped' && seasonsCompleted > 0
-                    ? `Dropped (after S${seasonsCompleted})`
+                    ? `Dropped (S${seasonsCompleted})`
                     : userStatus === 'On Hold' && seasonsCompleted > 0
-                    ? `On Hold (S${seasonsCompleted} Done)`
+                    ? `On Hold (S${seasonsCompleted})`
                     : userStatus === 'Want to Watch' && seasonsCompleted > 0
                     ? `S${seasonsCompleted} Done • Next S${seasonsCompleted + 1}`
                     : userStatus === 'Watching' && seasonsCompleted > 0
@@ -111,14 +111,14 @@ export default function MediaCard({
                     : userStatus}
                 </span>
                 {isRewatching && (
-                  <span className="ml-1 px-1.5 py-0.2 rounded bg-purple-950/90 text-purple-300 border border-purple-700/60 text-[9px] font-extrabold flex items-center gap-0.5 shrink-0" title="Rewatching">
+                  <span className="ml-1 px-1 py-0.2 rounded bg-purple-950/90 text-purple-300 border border-purple-700/60 text-[8.5px] sm:text-[9px] font-extrabold flex items-center gap-0.5 shrink-0" title="Rewatching">
                     <RotateCw className="w-2.5 h-2.5" />
                     <span>Rewatch</span>
                   </span>
                 )}
               </div>
               {isEpisodic && (
-                <span className="text-[10px] text-zinc-300 font-semibold shrink-0">
+                <span className="text-[9.5px] sm:text-[10px] text-zinc-300 font-semibold shrink-0 pl-1">
                   {shouldShowSeasonBadges && seasonsCompleted > 0 ? (
                     `${seasonsCompleted}/${totalSeasons} Sns`
                   ) : totalEp ? (
@@ -128,7 +128,7 @@ export default function MediaCard({
               )}
             </div>
           ) : (
-            <div className="self-start flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-zinc-950/85 border border-zinc-800/80 backdrop-blur-md text-zinc-400 text-[10px] font-semibold">
+            <div className="self-start flex items-center gap-1 px-2 py-0.5 rounded-lg bg-zinc-950/85 border border-zinc-800/80 backdrop-blur-md text-zinc-400 text-[9.5px] sm:text-[10px] font-semibold">
               <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
               <span>Not Started</span>
             </div>
@@ -154,34 +154,34 @@ export default function MediaCard({
       </div>
 
       {/* Card Info Details */}
-      <div className="p-3 sm:p-3.5 flex-1 flex flex-col justify-between space-y-2">
-        <div>
-          <div className="flex items-center justify-between gap-2 text-[11px] text-zinc-400 font-medium">
-            <span>{media.releaseYear || 'TBA'}</span>
+      <div className="p-2.5 sm:p-3.5 flex-1 flex flex-col justify-between space-y-1.5 sm:space-y-2 min-w-0">
+        <div className="min-w-0">
+          <div className="flex items-center justify-between gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] text-zinc-400 font-medium">
+            <span className="shrink-0">{media.releaseYear || 'TBA'}</span>
             <span className="text-zinc-500">•</span>
             <span className="truncate">{media.studios?.[0] || media.networks?.[0] || media.status}</span>
             {shouldShowSeasonBadges && (
               <>
                 <span className="text-zinc-500">•</span>
                 <span className="text-zinc-300 font-semibold shrink-0">
-                  {seasonsCompleted > 0 ? `${seasonsCompleted}/${totalSeasons} Sns Done` : `${totalSeasons} Sns`}
+                  {seasonsCompleted > 0 ? `${seasonsCompleted}/${totalSeasons} Sns` : `${totalSeasons} Sns`}
                 </span>
               </>
             )}
           </div>
 
-          <h3 className="text-sm font-bold text-white group-hover:text-red-400 transition-colors line-clamp-1 mt-1 leading-snug" title={media.title}>
+          <h3 className="text-xs sm:text-sm font-bold text-white group-hover:text-red-400 transition-colors line-clamp-1 mt-1 leading-snug" title={media.title}>
             {media.title}
           </h3>
 
           {media.originalTitle && media.originalTitle !== media.title && (
-            <p className="text-[11px] text-zinc-400 truncate mt-0.5">
+            <p className="text-[10px] sm:text-[11px] text-zinc-400 truncate mt-0.5">
               {media.originalTitle}
             </p>
           )}
 
           {media.sourceTitle && (
-            <div className="flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold truncate">
+            <div className="flex items-center gap-1 mt-1.5 px-1.5 sm:px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[9.5px] sm:text-[10px] font-bold truncate">
               <Sparkles className="w-2.5 h-2.5 text-amber-400 shrink-0" />
               <span className="truncate">Based on {media.sourceTitle} (★{media.sourceRating || 10})</span>
             </div>
@@ -192,7 +192,7 @@ export default function MediaCard({
             if (media.matchedPerson) {
               const p = media.matchedPerson;
               return (
-                <div className="flex items-center gap-1.5 mt-2 pt-1 border-t border-zinc-800/50 overflow-hidden">
+                <div className="flex items-center gap-1.5 mt-2 pt-1 border-t border-zinc-800/50 overflow-hidden min-w-0">
                   <span className="text-[9.5px] font-bold text-red-400 shrink-0 uppercase tracking-wider flex items-center gap-0.5">
                     <User className="w-2.5 h-2.5 text-red-400" />
                   </span>
@@ -204,7 +204,7 @@ export default function MediaCard({
                       }
                     }}
                     title={`Filter by actor: ${p.name}`}
-                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold max-w-[190px] truncate bg-red-950/60 border border-red-500/40 text-red-300 hover:text-white cursor-pointer"
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9.5px] sm:text-[10px] font-bold max-w-full truncate bg-red-950/60 border border-red-500/40 text-red-300 hover:text-white cursor-pointer min-w-0"
                   >
                     {p.image && <img src={p.image} alt="" className="w-3.5 h-3.5 rounded-full object-cover shrink-0" />}
                     <span className="truncate">{p.name}</span>
@@ -218,11 +218,11 @@ export default function MediaCard({
             const displayList = (chars && chars.length > 0 ? chars : (media.cast || [])).slice(0, 2);
             if (!displayList || displayList.length === 0) return null;
             return (
-              <div className="flex items-center gap-1.5 mt-2 pt-1 border-t border-zinc-800/50 overflow-hidden">
+              <div className="flex items-center gap-1 mt-2 pt-1 border-t border-zinc-800/50 overflow-hidden min-w-0">
                 <span className="text-[9.5px] font-bold text-zinc-400 shrink-0 uppercase tracking-wider flex items-center gap-0.5" title="Lead cast / character(s)">
                   <User className="w-2.5 h-2.5 text-zinc-400" />
                 </span>
-                <div className="flex items-center gap-1.5 overflow-hidden">
+                <div className="flex items-center gap-1 overflow-hidden min-w-0 flex-1">
                   {displayList.map((c, i) => {
                     const cName = c.name || c.character || c.actor;
                     const cImg = c.image || c.characterImage || c.actorImage;
@@ -238,7 +238,7 @@ export default function MediaCard({
                           }
                         }}
                         title={`Filter by: ${cName}${c.actor ? ` (${c.actor})` : ''}`}
-                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium max-w-[125px] truncate transition-colors ${
+                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px] font-medium max-w-[70px] sm:max-w-[125px] truncate transition-colors min-w-0 ${
                           onSelectCharacter 
                             ? 'bg-zinc-800/90 hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/40 border border-zinc-700/60 text-zinc-300 cursor-pointer'
                             : 'bg-zinc-800/70 text-zinc-400 border border-zinc-700/40'
@@ -287,20 +287,21 @@ export default function MediaCard({
 
         {/* Quick Action Buttons: Want to Watch & Completed directly on Card */}
         {onQuickSetStatus && (
-          <div className="grid grid-cols-2 gap-1.5 pt-1.5 border-t border-zinc-800/60 mt-0.5">
+          <div className="grid grid-cols-2 gap-1 sm:gap-1.5 pt-1.5 border-t border-zinc-800/60 mt-0.5 min-w-0">
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onQuickSetStatus(media, 'Want to Watch');
               }}
-              className={`flex items-center justify-center gap-1 py-1 px-1.5 rounded-xl text-[10.5px] font-bold border transition-all ${userStatus === 'Want to Watch'
+              className={`flex items-center justify-center gap-1 py-1 px-1 sm:px-1.5 rounded-xl text-[10px] sm:text-[10.5px] font-bold border transition-all min-w-0 truncate ${userStatus === 'Want to Watch'
                   ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm font-extrabold'
                   : 'bg-zinc-950/70 hover:bg-zinc-800 text-zinc-400 hover:text-amber-300 border-zinc-800/80 hover:border-amber-500/40'
                 }`}
               title="Add / Set status as Want to Watch"
             >
               <Bookmark className={`w-3 h-3 shrink-0 ${userStatus === 'Want to Watch' ? 'fill-amber-400 text-amber-400' : ''}`} />
-              <span className="truncate">Want to Watch</span>
+              <span className="truncate hidden sm:inline">Want to Watch</span>
+              <span className="truncate sm:hidden">Watch</span>
             </button>
 
             <button
@@ -308,14 +309,15 @@ export default function MediaCard({
                 e.stopPropagation();
                 onQuickSetStatus(media, 'Completed');
               }}
-              className={`flex items-center justify-center gap-1 py-1 px-1.5 rounded-xl text-[10.5px] font-bold border transition-all ${userStatus === 'Completed'
+              className={`flex items-center justify-center gap-1 py-1 px-1 sm:px-1.5 rounded-xl text-[10px] sm:text-[10.5px] font-bold border transition-all min-w-0 truncate ${userStatus === 'Completed'
                   ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm font-extrabold'
                   : 'bg-zinc-950/70 hover:bg-zinc-800 text-zinc-400 hover:text-emerald-300 border-zinc-800/80 hover:border-emerald-500/40'
                 }`}
               title="Add / Mark as Completed"
             >
               <CheckCircle2 className={`w-3 h-3 shrink-0 ${userStatus === 'Completed' ? 'text-emerald-400' : ''}`} />
-              <span className="truncate">Completed</span>
+              <span className="truncate hidden sm:inline">Completed</span>
+              <span className="truncate sm:hidden">Done</span>
             </button>
           </div>
         )}

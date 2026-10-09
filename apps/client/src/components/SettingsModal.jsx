@@ -245,17 +245,17 @@ export default function SettingsModal({ isOpen, onClose, systemStatus }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-5xl max-h-[90vh] bg-zinc-950 rounded-3xl overflow-hidden border border-zinc-800 shadow-2xl flex flex-col"
+        className="relative w-full max-w-5xl min-h-screen sm:min-h-0 sm:max-h-[90vh] bg-zinc-950 rounded-none sm:rounded-3xl overflow-hidden border-0 sm:border border-zinc-800 shadow-2xl flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
         <div className="p-4 sm:p-6 pb-4 border-b border-zinc-800 flex items-center justify-between shrink-0 bg-zinc-950/80">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-red-600/10 text-red-500 border border-red-500/20">
+            <div className="p-2 sm:p-2.5 rounded-2xl bg-red-600/10 text-red-500 border border-red-500/20">
               <Server className="w-5 h-5" />
             </div>
             <div>
@@ -280,38 +280,38 @@ export default function SettingsModal({ isOpen, onClose, systemStatus }) {
         </div>
 
         {/* Navigation Tabs */}
-        <div className="px-6 pt-2 border-b border-zinc-800 flex items-center justify-between gap-4 bg-zinc-900/40 shrink-0">
-          <div className="flex items-center gap-6">
+        <div className="px-3 sm:px-6 pt-2 border-b border-zinc-800 flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-4 bg-zinc-900/40 shrink-0">
+          <div className="flex items-center gap-4 sm:gap-6 overflow-x-auto scrollbar-none w-full md:w-auto">
             <button
               onClick={() => setActiveTab('mirrors')}
-              className={`pb-3 text-xs sm:text-sm font-extrabold uppercase tracking-wider transition-all border-b-2 flex items-center gap-2 ${
+              className={`pb-3 text-xs sm:text-sm font-extrabold uppercase tracking-wider transition-all border-b-2 flex items-center gap-2 whitespace-nowrap ${
                 activeTab === 'mirrors'
                   ? 'text-red-500 border-red-500'
                   : 'text-zinc-400 border-transparent hover:text-zinc-200'
               }`}
             >
-              <Globe className="w-4 h-4" />
+              <Globe className="w-4 h-4 shrink-0" />
               <span>Dynamic Mirror Registry ({mirrors.length})</span>
             </button>
 
             <button
               onClick={() => setActiveTab('system')}
-              className={`pb-3 text-xs sm:text-sm font-extrabold uppercase tracking-wider transition-all border-b-2 flex items-center gap-2 ${
+              className={`pb-3 text-xs sm:text-sm font-extrabold uppercase tracking-wider transition-all border-b-2 flex items-center gap-2 whitespace-nowrap ${
                 activeTab === 'system'
                   ? 'text-red-500 border-red-500'
                   : 'text-zinc-400 border-transparent hover:text-zinc-200'
               }`}
             >
-              <Database className="w-4 h-4" />
+              <Database className="w-4 h-4 shrink-0" />
               <span>Storage & Providers</span>
             </button>
           </div>
 
           {activeTab === 'mirrors' && (
-            <div className="flex items-center gap-2 pb-2">
+            <div className="flex items-center gap-2 pb-2 overflow-x-auto scrollbar-none">
               <button
                 onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 transition-all hover:scale-105 active:scale-95"
+                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 transition-all hover:scale-105 active:scale-95"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Custom Site</span>
@@ -320,7 +320,7 @@ export default function SettingsModal({ isOpen, onClose, systemStatus }) {
               <button
                 onClick={handleCheckAll}
                 disabled={isCheckingAll}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
               >
                 <RotateCw className={`w-3.5 h-3.5 ${isCheckingAll ? 'animate-spin text-amber-400' : 'text-amber-400'}`} />
                 <span>{isCheckingAll ? 'Verifying All...' : '⚡ Verify All Domains'}</span>

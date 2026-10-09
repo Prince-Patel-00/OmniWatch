@@ -1,34 +1,34 @@
 {
-  "milestone": "v2.6 Mobile Experience, Catalog Isolation & Dynamic Seasons",
-  "phase": "Phase 1: Auth Session Integrity & Logout Catalog Clearing",
+  "milestone": "Peachify Direct Streaming Player Integration",
+  "phase": "Direct Streaming Embed & Link Integration",
   "tasks": [
     {
       "id": 1,
-      "description": "Update authMiddleware to remove DEFAULT_USER_ID fallback, returning empty catalog on unauthenticated requests and clearing catalog in App.jsx on logout. Remove Fill Demo Credentials from AuthModal.",
+      "description": "Author shared Peachify resolver and URL generator in packages/shared/src/peachify.js and enrich TVMazeProvider with IMDb external mappings.",
       "status": "completed",
-      "verification": "node --test tests/user_auth_catalog.test.js"
+      "verification": "node --test tests/peachify_streaming.test.js"
     },
     {
       "id": 2,
-      "description": "Expand container to max-w-[1720px], expand search bar in Navbar.jsx, and update pagination options to 25, 50, 100 across client and server.",
+      "description": "Author green-themed PeachifyPlayer.jsx component with responsive iframe, external launch link, and postMessage progress sync.",
       "status": "completed",
       "verification": "npm run build --workspace=apps/client"
     },
     {
       "id": 3,
-      "description": "Optimize mobile responsiveness across Navbar, FilterBar, MediaCard, MediaDetailModal, EpisodeGuide, and AuthModal for touch devices.",
+      "description": "Integrate PeachifyPlayer at the top of MediaDetailModal sources tab strictly above mirror links and wire episode guide selection.",
       "status": "completed",
       "verification": "npm run build --workspace=apps/client"
     },
     {
       "id": 4,
-      "description": "Suppress season badges on movies and standalone anime seasons, add Next Season / Sequel navigation button in EpisodeGuide/MediaDetailModal, and ensure dynamic API season hydration without hardcoded definitions.",
+      "description": "Implement comprehensive automated tests in tests/peachify_streaming.test.js and run full regression suite.",
       "status": "completed",
-      "verification": "node --test tests/unified_seasons_mirrors.test.js"
+      "verification": "npm test"
     },
     {
       "id": 5,
-      "description": "Create automated tests for v2.6 modifications, verify entire monorepo (npm test, npm run build), and run CodeRabbit 4-pillar audit.",
+      "description": "Perform comprehensive CodeRabbit 4-pillar review with severity badges across all repository modifications.",
       "status": "completed",
       "verification": "npm test"
     }

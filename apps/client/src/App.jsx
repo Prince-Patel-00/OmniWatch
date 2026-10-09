@@ -780,7 +780,7 @@ export default function App() {
   const catalogCount = Math.max(0, (stats?.totalItems ?? catalogItems.length) - wantToWatchCount);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans selection:bg-red-600 selection:text-white">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans selection:bg-red-600 selection:text-white overflow-x-hidden max-w-full w-full">
 
       {/* Top Universal Navbar */}
       <Navbar
@@ -803,7 +803,7 @@ export default function App() {
       />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-[1720px] w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-8">
+      <main className="flex-1 max-w-[1720px] w-full mx-auto px-2.5 sm:px-6 lg:px-8 py-3 sm:py-6 pb-24 md:pb-8 min-w-0">
 
         {/* VIEW 1: INSIGHTS & ANALYTICS */}
         {currentView === 'stats' ? (
@@ -868,7 +868,7 @@ export default function App() {
             {/* Media Grid / Empty State */}
             {loading ? (
               /* Skeleton Loader */
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 sm:gap-4 md:gap-6">
                 {Array.from({ length: 12 }).map((_, i) => (
                   <div
                     key={i}
@@ -884,7 +884,7 @@ export default function App() {
               </div>
             ) : displayItems.length > 0 ? (
               <>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 sm:gap-4 md:gap-6">
                   {displayItems.map((item) => {
                     const canonicalId = item.canonicalId || item.id;
                     const catEntry = catalogMap.get(canonicalId) || (currentView === 'catalog' || currentView === 'want_to_watch' ? item : null);

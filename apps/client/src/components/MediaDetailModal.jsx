@@ -26,6 +26,7 @@ import {
   User
 } from 'lucide-react';
 import EpisodeGuide from './EpisodeGuide.jsx';
+import PeachifyPlayer from './PeachifyPlayer.jsx';
 import {
   USER_WATCH_STATUSES_LIST,
   POPULAR_REGIONS,
@@ -67,6 +68,7 @@ export default function MediaDetailModal({
   const [notesInput, setNotesInput] = useState(catalogEntry?.notes || '');
   const [showNotesEditor, setShowNotesEditor] = useState(false);
   const [syncEpisodesWithSeasons, setSyncEpisodesWithSeasons] = useState(true);
+  const [peachifyEpisode, setPeachifyEpisode] = useState({ season: 1, episode: 1 });
 
   // Helper to merge fresh verified default mirrors with any saved custom mirrors
   const getMergedSources = (m) => {
@@ -476,27 +478,27 @@ export default function MediaDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-1 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md overflow-y-auto animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md overflow-y-auto animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-5xl my-auto bg-zinc-950 rounded-2xl sm:rounded-3xl overflow-hidden border border-zinc-800 shadow-2xl max-h-[96vh] sm:max-h-[92vh] flex flex-col"
+        className="relative w-full max-w-5xl my-auto bg-zinc-950 rounded-none sm:rounded-3xl overflow-hidden border-0 sm:border border-zinc-800 shadow-2xl min-h-screen sm:min-h-0 sm:max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Floating Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-40 p-2.5 rounded-full bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700/80 backdrop-blur-md transition-all hover:scale-105 active:scale-95"
+          className="absolute top-3 right-3 sm:top-4 sm:right-4 z-40 p-2 sm:p-2.5 rounded-full bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700/80 backdrop-blur-md transition-all hover:scale-105 active:scale-95 shadow-lg"
           title="Close (Esc)"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
 
         {/* Scrollable Container */}
         <div className="overflow-y-auto flex-1">
 
           {/* Header Banner & Hero Section */}
-          <div className="relative w-full h-72 sm:h-84 md:h-96 bg-zinc-950 overflow-hidden">
+          <div className="relative w-full h-64 sm:h-84 md:h-96 bg-zinc-950 overflow-hidden">
             <img
               src={media.backdropUrl || media.bannerUrl || media.posterUrl}
               alt={media.title}
@@ -506,10 +508,10 @@ export default function MediaDetailModal({
             <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/90 via-transparent to-zinc-950/40" />
 
             {/* Poster & Title Layer */}
-            <div className="absolute bottom-6 left-6 right-6 flex flex-col sm:flex-row items-start sm:items-end gap-4 sm:gap-5">
+            <div className="absolute bottom-3 left-3 right-3 sm:bottom-6 sm:left-6 sm:right-6 flex flex-row items-end gap-3 sm:gap-5">
 
               {/* Poster Thumbnail (Visible on both mobile & desktop) */}
-              <div className="w-24 sm:w-32 md:w-44 aspect-[2/3] shrink-0 rounded-2xl overflow-hidden border-2 border-zinc-700 shadow-2xl bg-zinc-900">
+              <div className="w-20 sm:w-32 md:w-44 aspect-[2/3] shrink-0 rounded-xl sm:rounded-2xl overflow-hidden border-2 border-zinc-700 shadow-2xl bg-zinc-900">
                 <img
                   src={media.posterUrl}
                   alt={media.title}
@@ -518,26 +520,26 @@ export default function MediaDetailModal({
               </div>
 
               {/* Title & Metadata Strip */}
-              <div className="flex-1 space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded-md text-xs font-black uppercase tracking-wider bg-red-600 text-white shadow-md">
+              <div className="flex-1 space-y-1.5 sm:space-y-2 min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                  <span className="px-2 sm:px-2.5 py-0.5 rounded-md text-[10px] sm:text-xs font-black uppercase tracking-wider bg-red-600 text-white shadow-md">
                     {media.mediaType}
                   </span>
 
                   {media.rating && (
-                    <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                      <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                    <span className="flex items-center gap-1 px-1.5 sm:px-2.5 py-0.5 rounded-md text-[10px] sm:text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                      <Star className="w-3 sm:w-3.5 h-3 sm:h-3.5 fill-amber-400 text-amber-400" />
                       {media.rating.toFixed(1)}
                     </span>
                   )}
 
                   {media.releaseYear && (
-                    <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-zinc-900 text-zinc-300 border border-zinc-800">
+                    <span className="px-1.5 sm:px-2.5 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold bg-zinc-900 text-zinc-300 border border-zinc-800">
                       {media.releaseYear}
                     </span>
                   )}
 
-                  <span className={`px-2.5 py-0.5 rounded-md text-xs font-bold border ${isAiring
+                  <span className={`px-1.5 sm:px-2.5 py-0.5 rounded-md text-[10px] sm:text-xs font-bold border ${isAiring
                       ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
                       : 'bg-zinc-900 text-zinc-400 border-zinc-800'
                     }`}>
@@ -545,19 +547,19 @@ export default function MediaDetailModal({
                   </span>
 
                   {timeUntilAiring && isAiring && (
-                    <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-bold bg-red-950/80 text-red-300 border border-red-800/60 animate-pulse">
-                      <Clock className="w-3.5 h-3.5 text-red-400" />
+                    <span className="flex items-center gap-1 px-1.5 sm:px-2.5 py-0.5 rounded-md text-[10px] sm:text-xs font-bold bg-red-950/80 text-red-300 border border-red-800/60 animate-pulse">
+                      <Clock className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-red-400" />
                       Next Ep {timeUntilAiring}
                     </span>
                   )}
                 </div>
 
-                <h1 className="text-xl sm:text-3xl md:text-4xl font-black text-white leading-tight">
+                <h1 className="text-lg sm:text-3xl md:text-4xl font-black text-white leading-tight line-clamp-2">
                   {media.title}
                 </h1>
 
                 {media.originalTitle && media.originalTitle !== media.title && (
-                  <p className="text-xs sm:text-base text-zinc-400 font-medium">
+                  <p className="text-[11px] sm:text-base text-zinc-400 font-medium truncate">
                     {media.originalTitle}
                   </p>
                 )}
@@ -963,7 +965,7 @@ export default function MediaDetailModal({
           )}
 
           {/* Navigation Tabs Strip with + Add Mirror Link */}
-          <div className="px-4 sm:px-6 pt-3 border-b border-zinc-800 flex items-center justify-between gap-4 overflow-x-auto scrollbar-none">
+          <div className="px-3 sm:px-6 pt-3 border-b border-zinc-800 flex items-center justify-between gap-3 overflow-x-auto scrollbar-none w-full min-w-0">
             <div className="flex items-center gap-4 sm:gap-6">
               <button
                 onClick={() => setActiveTab('sources')}
@@ -1035,6 +1037,18 @@ export default function MediaDetailModal({
             {/* TAB 0: STREAMING & DOWNLOAD MIRRORS */}
             {activeTab === 'sources' && (
               <div className="space-y-6 animate-fade-in">
+                {/* ⚡ Dedicated Green-Themed Peachify Direct Stream Section */}
+                <PeachifyPlayer
+                  media={media}
+                  activeSeason={peachifyEpisode.season}
+                  activeEpisode={peachifyEpisode.episode}
+                  onSeasonChange={(s) => setPeachifyEpisode((prev) => ({ ...prev, season: s, episode: 1 }))}
+                  onEpisodeChange={(e) => setPeachifyEpisode((prev) => ({ ...prev, episode: e }))}
+                  onEpisodeCompleted={(sNum, eNum) => {
+                    handleEpisodeToggleFrictionless(sNum, eNum, true);
+                  }}
+                />
+
                 {/* Filter Pills Bar & Live Check Button */}
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-2">
@@ -1165,12 +1179,12 @@ export default function MediaDetailModal({
                         </div>
 
                         {/* Action Buttons Row */}
-                        <div className="flex items-center gap-2.5 pt-1">
+                        <div className="flex items-center gap-2 pt-1 w-full">
                           <a
                             href={source.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className={`font-bold py-2.5 px-5 rounded-xl flex-1 flex items-center justify-center gap-2 shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all text-xs sm:text-sm ${
+                            className={`font-bold py-2 sm:py-2.5 px-3 sm:px-5 rounded-xl flex-1 flex items-center justify-center gap-1.5 sm:gap-2 shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all text-xs sm:text-sm min-w-0 ${
                               source.isWorking !== false
                                 ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-950/50'
                                 : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
@@ -1178,28 +1192,28 @@ export default function MediaDetailModal({
                             title={source.isWorking === false ? (source.statusNote || 'Domain reported offline or blocked') : 'Open Mirror'}
                           >
                             {source.type === 'Download' ? (
-                              <Download className="w-4 h-4" />
+                              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                             ) : (
-                              <Play className="w-4 h-4 fill-current" />
+                              <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current shrink-0" />
                             )}
-                            <span>{source.type === 'Download' ? 'Download Now' : 'Stream Now'}</span>
-                            <ExternalLink className="w-3.5 h-3.5 ml-1" />
+                            <span className="truncate">{source.type === 'Download' ? 'Download' : 'Stream Now'}</span>
+                            <ExternalLink className="w-3 h-3 ml-0.5 shrink-0" />
                           </a>
 
                           <button
                             onClick={() => handleCopyUrl(source.id, source.url)}
-                            className="bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white font-semibold py-2.5 px-4 rounded-xl flex items-center gap-2 transition-all text-xs"
+                            className="bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white font-semibold py-2 sm:py-2.5 px-3 sm:px-4 rounded-xl flex items-center gap-1.5 transition-all text-xs shrink-0"
                             title="Copy Direct Link URL"
                           >
                             {copiedSourceId === source.id ? (
                               <>
                                 <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                <span className="text-emerald-400 font-bold">Copied</span>
+                                <span className="text-emerald-400 font-bold hidden xs:inline">Copied</span>
                               </>
                             ) : (
                               <>
                                 <Copy className="w-3.5 h-3.5" />
-                                <span>Copy</span>
+                                <span className="hidden xs:inline">Copy</span>
                               </>
                             )}
                           </button>
@@ -1479,6 +1493,10 @@ export default function MediaDetailModal({
                 isCatalogItem={Boolean(catalogEntry)}
                 relatedMedia={media.relatedMedia || []}
                 onSelectRelated={onSelectRelated}
+                onStreamEpisodeInPeachify={(sNum, eNum) => {
+                  setPeachifyEpisode({ season: sNum, episode: eNum });
+                  setActiveTab('sources');
+                }}
               />
             )}
 

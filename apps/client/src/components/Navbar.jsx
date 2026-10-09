@@ -54,32 +54,32 @@ export default function Navbar({
   }, []);
 
   const getPlaceholder = () => {
-    if (activeCharacter) return `Filtering by "${activeCharacter}"...`;
-    if (searchMode === 'character') return "Search hero, heroine, actor or cast (e.g. Andrew Garfield, Spider-Man)...";
-    if (searchMode === 'title') return "Search by title name... ('/' to focus)";
-    return "Search movies, series, anime, actors or hero casting... ('/' to focus)";
+    if (activeCharacter) return `Filtering "${activeCharacter}"...`;
+    if (searchMode === 'character') return "Search actor, hero or cast...";
+    if (searchMode === 'title') return "Search title...";
+    return "Search movies, series, anime, cast...";
   };
 
   return (
     <header className="sticky top-0 z-40 w-full backdrop-blur-2xl bg-zinc-950/90 border-b border-zinc-800/80 shadow-md shadow-black/40 transition-colors">
-      <div className="max-w-[1720px] w-full mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4 lg:gap-6">
+      <div className="max-w-[1720px] w-full mx-auto px-2.5 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-1.5 sm:gap-4 lg:gap-6">
         
         {/* Brand Logo & Workspaces */}
-        <div className="flex items-center gap-3 sm:gap-6 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-6 shrink-0">
           <div
             onClick={() => onViewChange('global')}
-            className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group select-none"
+            className="flex items-center gap-2 sm:gap-3 cursor-pointer group select-none"
           >
-            <div className="relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-red-600 via-rose-600 to-red-800 text-white shadow-lg shadow-red-950/60 group-hover:scale-105 group-hover:shadow-red-600/40 transition-all duration-300">
+            <div className="relative flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-red-600 via-rose-600 to-red-800 text-white shadow-lg shadow-red-950/60 group-hover:scale-105 group-hover:shadow-red-600/40 transition-all duration-300">
               <Film className="w-4 h-4 sm:w-5 sm:h-5 text-white group-hover:rotate-6 transition-transform" />
               <div className="absolute inset-0 rounded-xl ring-1 ring-white/25" />
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-lg sm:text-xl font-black tracking-tight text-white drop-shadow-sm">
+              <div className="flex items-center gap-1">
+                <span className="text-base sm:text-xl font-black tracking-tight text-white drop-shadow-sm">
                   OMNI<span className="text-red-500 bg-gradient-to-r from-red-500 to-rose-400 bg-clip-text text-transparent">WATCH</span>
                 </span>
-                <span className="text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-red-500/15 text-red-400 border border-red-500/30">
+                <span className="hidden sm:inline-flex text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-red-500/15 text-red-400 border border-red-500/30">
                   2.0
                 </span>
               </div>
@@ -161,12 +161,12 @@ export default function Navbar({
             
             {/* Search Mode Trigger Button */}
             {onSearchModeChange && (
-              <div className="relative pl-1.5">
+              <div className="relative pl-1 sm:pl-1.5">
                 <button
                   type="button"
                   onClick={() => setShowModeMenu(!showModeMenu)}
                   title={`Current search mode: ${searchMode.toUpperCase()}. Click to change.`}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition-colors ${
+                  className={`flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-lg text-[10.5px] sm:text-[11px] font-bold transition-colors ${
                     searchMode === 'character'
                       ? 'bg-red-500/20 text-red-300 border border-red-500/40'
                       : searchMode === 'title'
@@ -223,7 +223,7 @@ export default function Navbar({
 
             {/* Active Character Filter Pill inside Search */}
             {activeCharacter && (
-              <div className="flex items-center gap-1 ml-1.5 px-2 py-0.5 rounded-lg bg-red-950/80 border border-red-500/40 text-red-300 text-xs font-bold animate-in fade-in duration-200 shrink-0 max-w-[140px] truncate">
+              <div className="flex items-center gap-1 ml-1 sm:ml-1.5 px-1.5 sm:px-2 py-0.5 rounded-lg bg-red-950/80 border border-red-500/40 text-red-300 text-[11px] sm:text-xs font-bold animate-in fade-in duration-200 shrink-0 max-w-[85px] sm:max-w-[140px] truncate">
                 <User className="w-3 h-3 text-red-400 shrink-0" />
                 <span className="truncate">{activeCharacter}</span>
                 {onClearCharacter && (
@@ -245,13 +245,13 @@ export default function Navbar({
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder={getPlaceholder()}
-              className="w-full px-2.5 py-1.5 sm:py-2 text-xs sm:text-sm bg-transparent text-zinc-100 placeholder-zinc-500 outline-none transition-all"
+              className="w-full px-2 sm:px-2.5 py-1.5 sm:py-2 text-xs sm:text-sm bg-transparent text-zinc-100 placeholder-zinc-500 outline-none transition-all min-w-0"
             />
 
             {searchQuery && (
               <button
                 onClick={() => onSearchChange('')}
-                className="mr-2 p-1 rounded-full text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+                className="mr-1.5 sm:mr-2 p-1 rounded-full text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors shrink-0"
                 title="Clear search"
               >
                 <X className="w-3.5 h-3.5" />
@@ -261,11 +261,11 @@ export default function Navbar({
         </div>
 
         {/* Right Actions: Backup, Settings & Auth */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             onClick={onOpenBackup}
             title="Backup / Restore Catalog Data"
-            className="p-2 sm:px-3 sm:py-1.5 flex items-center gap-1.5 text-xs font-semibold rounded-xl bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 hover:border-zinc-700 transition-all shadow-sm"
+            className="hidden sm:flex p-2 sm:px-3 sm:py-1.5 items-center gap-1.5 text-xs font-semibold rounded-xl bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 hover:border-zinc-700 transition-all shadow-sm"
           >
             <Download className="w-4 h-4" />
             <span className="hidden lg:inline">Backup</span>
@@ -280,9 +280,9 @@ export default function Navbar({
             <span className="hidden sm:inline">Settings</span>
           </button>
 
-          {/* User Profile / Sign In */}
+          {/* User Profile / Sign In - shown on desktop/tablet, mobile uses bottom dock */}
           {currentUser ? (
-            <div className="relative">
+            <div className="relative hidden md:block">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
                 className="flex items-center gap-2 p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white transition-all shadow-sm"
@@ -291,7 +291,7 @@ export default function Navbar({
                 <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-red-600 to-rose-500 flex items-center justify-center text-[10px] font-black text-white shadow-inner">
                   {(currentUser.displayName || currentUser.email || 'U')[0].toUpperCase()}
                 </div>
-                <span className="text-xs font-bold max-w-[100px] truncate hidden md:inline">
+                <span className="text-xs font-bold max-w-[100px] truncate">
                   {currentUser.displayName || currentUser.email.split('@')[0]}
                 </span>
               </button>
@@ -319,10 +319,10 @@ export default function Navbar({
             <button
               onClick={onOpenAuth}
               title="Sign in to isolated personal catalog"
-              className="p-2 sm:px-3 sm:py-1.5 flex items-center gap-1.5 text-xs font-bold rounded-xl bg-red-600/15 text-red-400 hover:bg-red-600 hover:text-white border border-red-500/30 transition-all shadow-sm"
+              className="hidden md:flex p-2 sm:px-3 sm:py-1.5 items-center gap-1.5 text-xs font-bold rounded-xl bg-red-600/15 text-red-400 hover:bg-red-600 hover:text-white border border-red-500/30 transition-all shadow-sm"
             >
               <LogIn className="w-4 h-4" />
-              <span className="hidden sm:inline">Sign In</span>
+              <span>Sign In</span>
             </button>
           )}
         </div>

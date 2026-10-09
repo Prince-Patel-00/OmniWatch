@@ -720,4 +720,14 @@ export function shouldDisplaySeasonCount(media) {
   return Boolean(total && total > 1);
 }
 
+export {
+  PEACHIFY_BASE_URL,
+  PEACHIFY_DEFAULT_ACCENT,
+  PEACHIFY_EVENT_PLAYER,
+  PEACHIFY_EVENT_MEDIA_DATA,
+  resolvePeachifyId,
+  isPeachifySupported,
+  buildPeachifyUrl
+} from './peachify.js';
+
 
