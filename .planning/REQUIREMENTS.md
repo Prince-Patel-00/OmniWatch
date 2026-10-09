@@ -32,14 +32,14 @@ Deliver a zero-friction, production-ready Vercel deployment for OmniWatch using:
   - Non-API routes (e.g. `/`, `/watchlist`, `/settings`) serve the client SPA bundle without 404 errors.
   - Vercel Cron `/api/mirrors/check` is properly defined and accessible.
 
-### REQ-VERCEL-03: Cloud Neon Database Verification & Migration
-- **Description:** Verify Neon PostgreSQL schema generation, seeding default administrator account `makisanis106@gmail.com`, and ensure catalog items and episode progress are preserved.
+### REQ-VERCEL-03: Cloud Neon Database Verification & Migration [COMPLETE]
+- **Status:** ✅ VERIFIED (Plan 1.2 & Plan 3.1)
 - **Acceptance Criteria:**
   - `neonDB.initDB()` runs idempotently during serverless startup if tables are not initialized.
   - Queries execute successfully over `@neondatabase/serverless` connection pool.
 
-### REQ-VERCEL-04: Health & Diagnostics Endpoint
-- **Description:** Create `/api/health` returning system status, driver in use (`neon` or `sqlite`), uptime, and latency.
+### REQ-VERCEL-04: Health & Diagnostics Endpoint [COMPLETE]
+- **Status:** ✅ VERIFIED (Plan 3.1)
 - **Acceptance Criteria:**
   - `GET /api/health` returns `200 OK` with JSON `{ status: 'ok', database: 'neon', timestamp: '...' }`.
 
